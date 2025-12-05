@@ -1,0 +1,217 @@
+:root {
+            --bg-dark: #1E1E24;
+            --bg-card: #2C2C34;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B0B0B0;
+            --text-button-dark: #1E1E24;
+            --border-color: #3A3A44;
+            --accent-red: #D93030;
+            --accent-yellow: #E6B800;
+            --accent-green: #28A745;
+            --accent-grey: #9E9E9E;
+        }
+
+        /* --- GLOBAL RESET & BASE STYLES --- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden; /* Prevent scrolling for tablet-app feel */
+        }
+
+        /* --- APP CONTAINER --- */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* --- HEADER SECTION --- */
+        .top-header {
+            height: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-dark);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            font-size: 24px;
+            font-weight: 500;
+        }
+
+        .menu-icon {
+            font-size: 32px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+
+        .summary-buttons-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Summary Button Styling */
+        .summary-btn {
+            width: 100px;
+            height: 60px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-primary);
+        }
+
+        .summary-btn .count {
+            font-size: 28px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        .summary-btn .label {
+            font-size: 14px;
+        }
+
+        .summary-btn.new { background-color: var(--accent-red); }
+        .summary-btn.process { background-color: var(--accent-yellow); color: var(--text-button-dark); }
+        .summary-btn.ready { background-color: var(--accent-green); }
+        .summary-btn.served { background-color: var(--accent-grey); }
+
+
+        /* --- MAIN CONTENT (The 3 Columns) --- */
+        .main-content-area {
+            flex: 1; /* Takes remaining height */
+            display: flex;
+            width: 100%;
+            padding-top: 10px;
+        }
+
+        .column {
+            flex: 1; /* Each column takes 33.33% width */
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+        
+        .column:last-child {
+            border-right: none;
+        }
+
+        .column-header {
+            height: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-bottom: 2px solid transparent;
+            margin-bottom: 10px;
+        }
+
+        /* Column Specific Header Accents */
+        .new-col .column-header { border-color: var(--accent-red); color: var(--accent-red); }
+        .process-col .column-header { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .ready-col .column-header { border-color: var(--accent-green); color: var(--accent-green); }
+
+        /* Scrollable area for cards within a column */
+        .cards-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 10px 20px 10px; /* Bottom padding for scroll space */
+        }
+
+
+        /* --- ORDER CARD COMPONENT --- */
+        .order-card {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        /* Card Header Strip */
+        .card-header-strip {
+            height: 36px;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        /* Specific Card Header Colors */
+        .new-col .card-header-strip { background-color: var(--accent-red); }
+        .process-col .card-header-strip { background-color: var(--accent-yellow); color: var(--text-button-dark); }
+        .ready-col .card-header-strip { background-color: var(--accent-green); }
+
+        /* Card Body */
+        .card-body {
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        .item-list {
+            list-style-type: none;
+        }
+
+        .item-list li {
+            margin-bottom: 6px;
+        }
+
+        /* Card Footer (Action Button Area) */
+        .card-footer {
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding-bottom: 12px;
+        }
+
+        /* Main Action Button */
+        .action-btn {
+            width: 90%;
+            height: 40px;
+            background-color: #FFFFFF;
+            color: var(--text-button-dark);
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-transform: uppercase;
+        }
+
+        .action-btn:hover {
+            background-color: #E0E0E0;
+        }
+        
+        /* Custom Scrollbar Styling for dark theme */
+        ::-webkit-scrollbar {
+          width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: var(--bg-dark);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: var(--border-color);
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #555;
+        }

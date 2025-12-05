@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Display System (KDS) - Final</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <style>
+        /* --- CSS VARIABLES --- */
+        :root {
+            --bg-dark: #1E1E24;
+            --bg-card: #2C2C34;
+            --text-primary: #FFFFFF;
+            --text-secondary: #B0B0B0;
+            --text-button-dark: #1E1E24;
+            --border-color: #3A3A44;
+            --accent-red: #D93030;
+            --accent-yellow: #E6B800;
+            --accent-green: #28A745;
+            --accent-grey: #9E9E9E;
+        }
+
+        /* --- GLOBAL RESET --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body, html {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* --- APP CONTAINER --- */
+        .app-container { display: flex; flex-direction: column; height: 100vh; }
+
+        /* --- HEADER --- */
+        .top-header {
+            height: 80px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-dark);
+        }
+
+        .header-left { display: flex; align-items: center; font-size: 24px; font-weight: 500; }
+        .menu-icon { font-size: 32px; margin-right: 15px; cursor: pointer; }
+        .summary-buttons-container { display: flex; gap: 10px; }
+
+        .summary-btn {
+            width: 100px; height: 60px; border-radius: 8px;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            color: var(--text-primary);
+        }
+        .summary-btn .count { font-size: 28px; font-weight: bold; line-height: 1.1; }
+        .summary-btn .label { font-size: 14px; }
+
+        /* Status Colors */
+        .summary-btn.new { background-color: var(--accent-red); }
+        .summary-btn.process { background-color: var(--accent-yellow); color: var(--text-button-dark); }
+        .summary-btn.ready { background-color: var(--accent-green); }
+        
+        .summary-btn.served { 
+            background-color: var(--accent-grey); 
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .summary-btn.served:hover { opacity: 0.8; }
+
+        /* --- MAIN CONTENT --- */
+        .main-content-area { flex: 1; display: flex; width: 100%; padding-top: 10px; position: relative; }
+
+        .column {
+            flex: 1; display: flex; flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            height: 100%; /* Ensure column takes full height */
+        }
+        .column:last-child { border-right: none; }
+
+        .column-header {
+            height: 40px; display: flex; justify-content: center; align-items: center;
+            font-size: 18px; font-weight: bold; text-transform: uppercase;
+            border-bottom: 2px solid transparent; margin-bottom: 10px;
+        }
+
+        .new-col .column-header { border-color: var(--accent-red); color: var(--accent-red); }
+        .process-col .column-header { border-color: var(--accent-yellow); color: var(--accent-yellow); }
+        .ready-col .column-header { border-color: var(--accent-green); color: var(--accent-green); }
+
+        /* DROP ZONE (List Area) */
+        .cards-list {
+            flex: 1; /* Grow to fill remaining space */
+            overflow-y: auto; 
+            padding: 0 10px 20px 10px;
+            /* Critical for Drag & Drop: Ensure there is always a "target" area even if empty */
+            min-height: 100px; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Highlight class added by SortableJS automatically */
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: rgba(255,255,255,0.1);
+            border: 2px dashed #777;
+        }
+
+        /* --- ORDER CARD --- */
+        .order-card {
+            background-color: var(--bg-card);
+            border-radius: 8px; overflow: hidden;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            cursor: grab;
+        }
+        .order-card:active { cursor: grabbing; }
+
+        .card-header-strip {
+            height: 36px; display: flex; align-items: center; padding: 0 12px;
+            font-size: 14px; font-weight: bold; color: var(--text-primary);
+        }
+        
+        /* Dynamic Card Colors */
+        .new-col .order-card .card-header-strip { background-color: var(--accent-red); }
+        .process-col .order-card .card-header-strip { background-color: var(--accent-yellow); color: var(--text-button-dark); }
+        .ready-col .order-card .card-header-strip { background-color: var(--accent-green); }
+
+        .card-body { padding: 12px; font-size: 16px; }
+        .item-list { list-style-type: none; }
+        .item-list li { margin-bottom: 6px; }
+
+        .card-footer {
+            height: 60px; display: flex; justify-content: center; align-items: center; padding-bottom: 12px;
+        }
+
+        .action-btn {
+            width: 90%; height: 40px;
+            background-color: #FFFFFF; color: var(--text-button-dark);
+            border: none; border-radius: 4px;
+            font-size: 16px; font-weight: bold;
+            cursor: pointer; text-transform: uppercase;
+        }
+        .action-btn:hover { background-color: #E0E0E0; }
+
+        /* --- MODAL (SERVED ORDERS) --- */
+        .modal-overlay {
+            display: none; position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: var(--bg-dark);
+            width: 60%; height: 80%;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            display: flex; flex-direction: column; overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .modal-header {
+            height: 60px; background-color: var(--bg-card);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 0 20px; border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title { font-size: 20px; font-weight: bold; }
+        .close-btn { background: none; border: none; color: var(--text-primary); font-size: 28px; cursor: pointer; }
+
+        .modal-body {
+            flex: 1; overflow-y: auto; padding: 20px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;
+        }
+
+        .served-card-item {
+            background-color: var(--bg-card); border-radius: 8px; overflow: hidden;
+            opacity: 0.8; border: 1px solid var(--border-color);
+            height: fit-content;
+        }
+        .served-card-item .card-header-strip { background-color: var(--accent-grey); color: white; }
+        .served-card-item .card-footer { display: none; }
+
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <header class="top-header">
+            <div class="header-left">
+                <span class="menu-icon">☰</span>
+                <span>Kitchen Station - Main Grill</span>
+            </div>
+            
+            <div class="summary-buttons-container">
+                <div class="summary-btn new">
+                    <span class="count" id="count-new">0</span>
+                    <span class="label">New</span>
+                </div>
+                <div class="summary-btn process">
+                    <span class="count" id="count-process">0</span>
+                    <span class="label">Process</span>
+                </div>
+                <div class="summary-btn ready">
+                    <span class="count" id="count-ready">0</span>
+                    <span class="label">Ready</span>
+                </div>
+                <div class="summary-btn served" id="btn-show-served">
+                    <span class="count" id="count-served">50</span>
+                    <span class="label">Served (View)</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content-area">
+            
+            <section class="column new-col">
+                <div class="column-header">New Orders</div>
+                <div class="cards-list" id="new-list">
+                    <article class="order-card" data-id="11620">
+                        <div class="card-header-strip">Table 8 (Dine In) | #11620 | 3m</div>
+                        <div class="card-body">
+                            <ul class="item-list"><li>2x Classic Burger</li><li>1x Caesar Salad</li></ul>
+                        </div>
+                        <div class="card-footer"><button class="action-btn">Start</button></div>
+                    </article>
+                    <article class="order-card" data-id="11621">
+                        <div class="card-header-strip">Table 3 (Takeaway) | #11621 | 1m</div>
+                        <div class="card-body">
+                            <ul class="item-list"><li>1x Coke</li></ul>
+                        </div>
+                        <div class="card-footer"><button class="action-btn">Start</button></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="column process-col">
+                <div class="column-header">In Process</div>
+                <div class="cards-list" id="process-list">
+                    <article class="order-card" data-id="11618">
+                        <div class="card-header-strip">Table 4 (Takeaway) | #11618 | 9m</div>
+                        <div class="card-body">
+                            <ul class="item-list"><li>1x Pizza Margherita</li></ul>
+                        </div>
+                        <div class="card-footer"><button class="action-btn">Finish</button></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="column ready-col">
+                <div class="column-header">Ready / Pass</div>
+                <div class="cards-list" id="ready-list">
+                    <article class="order-card" data-id="11617">
+                        <div class="card-header-strip">Table 12 (Dine In) | #11617 | 2m</div>
+                        <div class="card-body">
+                            <ul class="item-list"><li>1x Pasta Carbonara</li></ul>
+                        </div>
+                        <div class="card-footer"><button class="action-btn">Served</button></div>
+                    </article>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <div class="modal-overlay" id="served-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">Served Orders History</span>
+                <button class="close-btn" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="served-history-list"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- 1. INITIALIZE SORTABLE JS (Drag and Drop Logic) ---
+            // This replaces 100 lines of brittle custom code with robust library logic
+            
+            const columns = ['new-list', 'process-list', 'ready-list'];
+            
+            columns.forEach(colId => {
+                const el = document.getElementById(colId);
+                
+                new Sortable(el, {
+                    group: 'kitchen-orders', // Allow dragging between lists
+                    animation: 150,          // Smooth animation
+                    ghostClass: 'sortable-ghost', // Class for the placeholder
+                    onEnd: function (evt) {
+                        const itemEl = evt.item;  // dragged HTMLElement
+                        const newContainerId = evt.to.id; // Target list ID
+                        
+                        // Update the button text and color based on where it landed
+                        updateCardState(itemEl, newContainerId);
+                        
+                        // Recalculate all totals
+                        updateCounts();
+                    }
+                });
+            });
+
+
+            // --- 2. STANDARD APP LOGIC ---
+
+            // Modal Elements
+            const servedModal = document.getElementById('served-modal');
+            const showServedBtn = document.getElementById('btn-show-served');
+            const closeModalBtn = document.getElementById('close-modal');
+            const servedHistoryList = document.getElementById('served-history-list');
+
+            // Initialize counts
+            updateCounts();
+
+            // Button Click Logic (Delegation) - Handles "Clicking" buttons instead of dragging
+            document.querySelector('.main-content-area').addEventListener('click', (e) => {
+                if (e.target.classList.contains('action-btn')) {
+                    const btn = e.target;
+                    const card = btn.closest('.order-card');
+                    const currentList = card.parentElement;
+                    
+                    if (currentList.id === 'new-list') {
+                        // Move to Process
+                        const processList = document.getElementById('process-list');
+                        processList.appendChild(card);
+                        updateCardState(card, 'process-list');
+                    } else if (currentList.id === 'process-list') {
+                        // Move to Ready
+                        const readyList = document.getElementById('ready-list');
+                        readyList.appendChild(card);
+                        updateCardState(card, 'ready-list');
+                    } else if (currentList.id === 'ready-list') {
+                        // Move to Served History
+                        moveToServedHistory(card);
+                    }
+                    updateCounts();
+                }
+            });
+
+            // Modal Logic
+            showServedBtn.addEventListener('click', () => servedModal.style.display = 'flex');
+            closeModalBtn.addEventListener('click', () => servedModal.style.display = 'none');
+            servedModal.addEventListener('click', (e) => {
+                if (e.target === servedModal) servedModal.style.display = 'none';
+            });
+
+
+            // --- HELPER FUNCTIONS ---
+
+            function updateCardState(card, columnId) {
+                const btn = card.querySelector('.action-btn');
+                // Check if button exists (it won't if the card is in history)
+                if (btn) {
+                    if (columnId === 'new-list') {
+                        btn.textContent = "Start";
+                    } else if (columnId === 'process-list') {
+                        btn.textContent = "Finish";
+                    } else if (columnId === 'ready-list') {
+                        btn.textContent = "Served";
+                    }
+                }
+            }
+
+            function updateCounts() {
+                // Count children in each list
+                document.getElementById('count-new').textContent = document.getElementById('new-list').children.length;
+                document.getElementById('count-process').textContent = document.getElementById('process-list').children.length;
+                document.getElementById('count-ready').textContent = document.getElementById('ready-list').children.length;
+            }
+
+            function moveToServedHistory(card) {
+                const historyCard = card.cloneNode(true);
+                // Clean up card for history view
+                historyCard.classList.remove('order-card'); 
+                historyCard.classList.add('served-card-item');
+                
+                servedHistoryList.prepend(historyCard); // Add to top
+                
+                card.remove(); // Remove from board
+                
+                // Manually increment served count
+                const servedEl = document.getElementById('count-served');
+                let current = parseInt(servedEl.textContent);
+                servedEl.textContent = current + 1;
+            }
+        });
+    </script>
+</body>
+</html>
