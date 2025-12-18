@@ -43,6 +43,9 @@ try {
         <header class="header">
             <h1>Customer List</h1>
             <div style="display: flex; gap: 10px;">
+                <a href="add-customer.php" class="btn btn-primary">
+                    <i class="fas fa-user-plus"></i> Add Customer
+                </a>
                 <a href="dashboard.php" class="btn btn-outline">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
@@ -132,9 +135,14 @@ try {
                                         </span>
                                     </td>
                                     <td>
-                                        <a href="customer-details.php?id=<?php echo $customer['id']; ?>" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.85rem;">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
+                                            <div class="action-buttons">
+                                                <a href="customer-details.php?id=<?php echo $customer['id']; ?>" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.85rem;">
+                                                    <i class="fas fa-eye"></i> View
+                                                </a>
+                                                <a href="edit-customer.php?id=<?php echo $customer['id']; ?>" class="btn btn-outline" style="padding: 5px 10px; font-size: 0.85rem;">
+                                                    <i class="fas fa-pen"></i> Edit
+                                                </a>
+                                            </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
