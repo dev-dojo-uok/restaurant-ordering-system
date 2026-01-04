@@ -18,7 +18,7 @@ services:
   
   # PHP Web Server
   web:
-    image: php:8.2-apache
+    build: .
     container_name: php-food-app
     ports:
       - "8080:80"
@@ -27,16 +27,11 @@ services:
     depends_on:
       - db
     environment:
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=food_app
-      - DB_USER=postgres
-      - DB_PASS=password
-    command: >
-      bash -c "
-      docker-php-ext-install pdo pdo_pgsql &&
-      apache2-foreground
-      "
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: food_app
+      DB_USER: postgres
+      DB_PASS: password
 
 volumes:
   postgres_data:

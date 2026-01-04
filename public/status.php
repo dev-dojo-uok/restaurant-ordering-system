@@ -27,6 +27,11 @@ $checks['php'] = [
 // ============================================
 try {
     require_once '../app/config/database.php';
+    $dbHostInfo = getenv('DB_HOST') ?: ($host ?? 'unknown');
+    $dbPortInfo = getenv('DB_PORT') ?: ($port ?? '5432');
+    $dbNameInfo = getenv('DB_NAME') ?: ($db ?? 'unknown');
+    $dbUserInfo = getenv('DB_USER') ?: ($user ?? 'unknown');
+    $dbSourceInfo = getenv('DB_HOST') ? 'docker env vars' : 'app/config/database.php';
     $checks['database'] = [
         'name' => 'Database Connection',
         'status' => true,
@@ -37,7 +42,15 @@ try {
     // Get database version
     $stmt = $pdo->query('SELECT version()');
     $version = $stmt->fetchColumn();
-    $checks['database']['details'] = substr($version, 0, 50) . '...';
+    $checks['database']['details'] = sprintf(
+        'Host: %s:%s • DB: %s • User: %s • Source: %s • Version: %s',
+        $dbHostInfo,
+        $dbPortInfo,
+        $dbNameInfo,
+        $dbUserInfo,
+        $dbSourceInfo,
+        substr($version, 0, 40) . '...'
+    );
     
 } catch (Exception $e) {
     $checks['database'] = [

@@ -1,10 +1,23 @@
 <?php
-// PDO connection to external PostgreSQL
-$host = "84.247.177.25";
-$port = "5432";
-$db   = "food_app";
-$user = "postgres";
-$pass = "uni3yweb2";
+// Load environment variables from .env file if it exists
+$envFile = __DIR__ . '/../../.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0) {
+            continue;
+        }
+        list($name, $value) = explode('=', $line, 2);
+        $_ENV[trim($name)] = trim($value);
+    }
+}
+
+// Get database credentials from environment variables
+$host = $_ENV['DB_HOST'] ?? getenv('DB_HOST');
+$port = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?? '5432';
+$db   = $_ENV['DB_NAME'] ?? getenv('DB_NAME');
+$user = $_ENV['DB_USER'] ?? getenv('DB_USER');
+$pass = $_ENV['DB_PASS'] ?? getenv('DB_PASS');
 
 try {
     $dsn = "pgsql:host=$host;port=$port;dbname=$db";

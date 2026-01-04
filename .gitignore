@@ -1,0 +1,5 @@
+public/assignment/q1.php
+public/assignment/q2.php
+
+# Environment variables - contains sensitive credentials
+.env
