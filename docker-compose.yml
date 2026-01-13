@@ -4,18 +4,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database (already running, but defined here for completeness)
-  db:
-    image: postgres:latest
-    container_name: postgres-food-app
-    environment:
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: food_app
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-  
+  # PostgreSQL Database (already running, but defined here for completeness)  
   # PHP Web Server
   web:
     build: .
@@ -24,8 +13,8 @@ services:
       - "8080:80"
     volumes:
       - .:/var/www/html
-    depends_on:
-      - db
+    # depends_on:
+    #   - db
     environment:
       DB_HOST: db
       DB_PORT: 5432

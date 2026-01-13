@@ -178,21 +178,37 @@ if ($resource === 'menu-items') {
     switch ($method) {
         case 'GET':
             if ($id) {
+                // Get single menu item with its variants
                 $stmt = $pdo->prepare('SELECT * FROM menu_items WHERE id = ?');
                 $stmt->execute([$id]);
                 $item = $stmt->fetch();
                 if (!$item) respond(404, ['error' => 'Menu item not found']);
+                
+                // Get variants for this item
+                $variantsStmt = $pdo->prepare('SELECT id, variant_name, price, is_default, is_available, display_order FROM menu_item_variants WHERE menu_item_id = ? AND is_available = true ORDER BY display_order, id');
+                $variantsStmt->execute([$id]);
+                $item['variants'] = $variantsStmt->fetchAll();
+                
                 respond(200, $item);
             } else {
+                // Get all menu items with their variants
                 $categoryId = isset($_GET['category_id']) ? intval($_GET['category_id']) : null;
                 if ($categoryId) {
                     $stmt = $pdo->prepare('SELECT * FROM menu_items WHERE category_id = ? AND is_available = true ORDER BY name');
                     $stmt->execute([$categoryId]);
-                    respond(200, $stmt->fetchAll());
                 } else {
                     $stmt = $pdo->query('SELECT * FROM menu_items WHERE is_available = true ORDER BY name');
-                    respond(200, $stmt->fetchAll());
                 }
+                $items = $stmt->fetchAll();
+                
+                // Fetch variants for each item
+                foreach ($items as &$item) {
+                    $variantsStmt = $pdo->prepare('SELECT id, variant_name, price, is_default, is_available, display_order FROM menu_item_variants WHERE menu_item_id = ? AND is_available = true ORDER BY display_order, id');
+                    $variantsStmt->execute([$item['id']]);
+                    $item['variants'] = $variantsStmt->fetchAll();
+                }
+                
+                respond(200, $items);
             }
         case 'POST':
             $d = getJsonBody();
@@ -288,16 +304,33 @@ if ($resource === 'orders') {
             $d = getJsonBody();
             foreach (['order_type','total_amount'] as $req) { if (!isset($d[$req])) respond(400, ['error' => "$req is required"]); }
             $userId = $d['user_id'] ?? null;
-            $stmt = $pdo->prepare('INSERT INTO orders (user_id, order_type, status, total_amount, customer_name, customer_phone, delivery_address, rider_id, table_number) VALUES (?, ?, COALESCE(?, \'' . 'ordered' . '\'), ?, ?, ?, ?, ?, ?) RETURNING id');
+            $stmt = $pdo->prepare('INSERT INTO orders (user_id, order_type, status, total_amount, customer_name, customer_phone, delivery_address, rider_id, table_number, payment_method, notes) VALUES (?, ?, COALESCE(?, \'' . 'ordered' . '\'), ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id');
             $stmt->execute([
-                $userId, $d['order_type'], $d['status'] ?? 'ordered', $d['total_amount'], $d['customer_name'] ?? null, $d['customer_phone'] ?? null, $d['delivery_address'] ?? null, $d['rider_id'] ?? null, $d['table_number'] ?? null
+                $userId, 
+                $d['order_type'], 
+                $d['status'] ?? 'ordered', 
+                $d['total_amount'], 
+                $d['customer_name'] ?? null, 
+                $d['customer_phone'] ?? null, 
+                $d['delivery_address'] ?? null, 
+                $d['rider_id'] ?? null, 
+                $d['table_number'] ?? null,
+                $d['payment_method'] ?? 'cash',
+                $d['notes'] ?? null
             ]);
             $orderId = $stmt->fetchColumn();
             // optional items array to create order_items
             if (isset($d['items']) && is_array($d['items'])) {
-                $oi = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, quantity, price, item_name) VALUES (?, ?, ?, ?, ?)');
+                $oi = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, variant_id, quantity, price, item_name) VALUES (?, ?, ?, ?, ?, ?)');
                 foreach ($d['items'] as $it) {
-                    $oi->execute([$orderId, $it['menu_item_id'] ?? null, intval($it['quantity'] ?? 1), $it['price'] ?? 0, $it['item_name'] ?? 'Item']);
+                    $oi->execute([
+                        $orderId, 
+                        $it['menu_item_id'] ?? null, 
+                        $it['variant_id'] ?? null,
+                        intval($it['quantity'] ?? 1), 
+                        $it['price'] ?? 0, 
+                        $it['item_name'] ?? 'Item'
+                    ]);
                 }
             }
             respond(201, ['message' => 'Order created', 'id' => intval($orderId)]);
@@ -305,7 +338,7 @@ if ($resource === 'orders') {
             if (!$id) respond(400, ['error' => 'Order ID required']);
             $d = getJsonBody();
             $fields = [];$vals=[];
-            foreach (['status','rider_id','delivery_address','table_number','total_amount','customer_name','customer_phone'] as $f) {
+            foreach (['status','rider_id','delivery_address','table_number','total_amount','customer_name','customer_phone','payment_method','notes'] as $f) {
                 if (array_key_exists($f, $d)) { $fields[] = "$f = ?"; $vals[] = $d[$f]; }
             }
             if (isset($d['status']) && in_array($d['status'], ['delivered','completed','collected'])) {

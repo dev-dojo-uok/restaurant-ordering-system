@@ -20,6 +20,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
         <span>Orders</span>
     </a>
     
+    <a href="kitchen.php" class="nav-link <?php echo $currentPage === 'kitchen.php' ? 'active' : ''; ?>">
+        <i class="fas fa-fire"></i> 
+        <span>Kitchen Display</span>
+    </a>
+    
     <a href="menu.php" class="nav-link <?php echo $currentPage === 'menu.php' ? 'active' : ''; ?>">
         <i class="fas fa-utensils"></i> 
         <span>Menu Items</span>

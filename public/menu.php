@@ -1,3 +1,119 @@
+<?php
+require_once __DIR__ . '/../app/config/database.php';
+
+// Fetch categories from database
+$categoriesStmt = $pdo->query("
+    SELECT id, name, description, display_order, is_active 
+    FROM menu_categories 
+    WHERE is_active = true 
+    ORDER BY display_order, name
+");
+$categoriesData = $categoriesStmt->fetchAll();
+
+// Fetch menu items with variants
+$menuItemsStmt = $pdo->query("
+    SELECT 
+        mi.id,
+        mi.category_id,
+        mi.name,
+        mi.description,
+        mi.price,
+        mi.image_url,
+        mi.is_available,
+        mi.preparation_time,
+        mi.is_featured,
+        mi.is_special,
+        mi.is_bestseller,
+        COALESCE(
+            json_agg(
+                json_build_object(
+                    'id', miv.id,
+                    'variant_name', miv.variant_name,
+                    'price', miv.price,
+                    'is_default', miv.is_default,
+                    'is_available', miv.is_available,
+                    'display_order', miv.display_order
+                )
+                ORDER BY miv.display_order, miv.id
+            ) FILTER (WHERE miv.id IS NOT NULL),
+            '[]'::json
+        ) as variants
+    FROM menu_items mi
+    LEFT JOIN menu_item_variants miv ON mi.id = miv.menu_item_id
+    WHERE mi.is_available = true
+    GROUP BY mi.id
+    ORDER BY mi.name
+");
+$menuItemsData = $menuItemsStmt->fetchAll();
+
+// Process categories to create a map and category slug mapping
+$categoryMap = [];
+$categorySlugMap = []; // Maps category_id to slug for filtering
+$categoryIdToSlug = []; // Reverse map
+foreach ($categoriesData as $cat) {
+    $categoryMap[$cat['id']] = $cat['name'];
+    
+    // Create a URL-friendly slug from category name
+    $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($cat['name'])));
+    $slug = trim($slug, '-');
+    $categorySlugMap[$cat['id']] = $slug;
+    $categoryIdToSlug[$slug] = $cat['id'];
+}
+
+// Transform menu items for JavaScript
+$processedMenuItems = [];
+foreach ($menuItemsData as $item) {
+    // Get category slug
+    $categorySlug = $categorySlugMap[$item['category_id']] ?? '';
+    
+    // Determine tag
+    $tag = '';
+    if ($item['is_featured']) $tag = 'hot';
+    elseif ($item['is_special']) $tag = 'new';
+    elseif ($item['is_bestseller']) $tag = 'popular';
+    
+    // Parse variants JSON
+    $variants = json_decode($item['variants'], true) ?? [];
+    
+    // Get default variant price
+    $defaultVariant = null;
+    foreach ($variants as $v) {
+        if ($v['is_default']) {
+            $defaultVariant = $v;
+            break;
+        }
+    }
+    if (!$defaultVariant && count($variants) > 0) {
+        $defaultVariant = $variants[0];
+    }
+    
+    $price = $defaultVariant ? (float)$defaultVariant['price'] : (float)$item['price'];
+    
+    $processedMenuItems[] = [
+        'id' => (int)$item['id'],
+        'name' => $item['name'],
+        'price' => $price,
+        'category' => $categorySlug,
+        'categoryName' => $categoryMap[$item['category_id']] ?? '',
+        'tag' => $tag,
+        'img' => $item['image_url'] ?: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+        'desc' => $item['description'] ?: '',
+        'variants' => $variants
+    ];
+}
+
+// Build categories list for filter (directly from database)
+$processedCategories = [['id' => 'all', 'name' => 'All Dishes']];
+foreach ($categoriesData as $cat) {
+    $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($cat['name'])));
+    $slug = trim($slug, '-');
+    
+    $processedCategories[] = [
+        'id' => $slug,
+        'name' => $cat['name']
+    ];
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -182,25 +298,9 @@
     <div class="toast-container" id="toastContainer"></div>
 
 <script>
-    // --- 1. DATA ---
-    const menuData = [
-        { id: 1, name: "Hot Butter Cuttlefish", price: 2700, category: "mains", tag: "hot", img: "https://bing.com/th?id=OSK.ebd5d6751da7d6c2a399e9806063c669", desc: "Crispy cuttlefish tossed in spicy butter sauce with leeks and chili paste." },
-        { id: 2, name: "Chicken Fried Rice", price: 1300, category: "rice", tag: "popular", img: "https://bing.com/th?id=OSK.c0647bba9da529b9bf2b640e5620d1ce", desc: "Classic wok-fried basmati rice with seasoned chicken chunks and spring onions." },
-        { id: 3, name: "Sweet Corn Soup", price: 1100, category: "soup", tag: "", img: "https://images.unsplash.com/photo-1601050690597-df0568f70950", desc: "Creamy sweet corn soup with a hint of ginger and ribbons of egg." },
-        { id: 4, name: "Special Chop Suey", price: 1900, category: "mains", tag: "new", img: "https://images.unsplash.com/photo-1540189549336-e6e99c3679fe", desc: "A mix of seafood, chicken and fresh vegetables in a savory oyster sauce." },
-        { id: 5, name: "Nasi Goreng", price: 1400, category: "rice", tag: "spicy", img: "https://th.bing.com/th/id/OIP.znFpL6C4h2Aqcs-WJZeRHAHaGP?o=7rm=3&rs=1&pid=ImgDetMain&o=7&rm=3", desc: "Indonesian style fried rice with chili paste, topped with a bullseye egg." },
-        { id: 6, name: "Caramel Pudding", price: 900, category: "dessert", tag: "sweet", img: "https://bing.com/th?id=OSK.f5d01692cc8ce6ac9e844c05b0dc8dcf", desc: "Silky smooth caramel custard with a rich burnt sugar syrup." },
-        { id: 7, name: "Spicy Crab Curry", price: 3200, category: "mains", tag: "chef choice", img: "https://images.unsplash.com/photo-1565557623262-b51c2513a641", desc: "Fresh lagoon crab cooked in traditional Jaffna spices and thick coconut milk." },
-        { id: 8, name: "Chocolate Lava Cake", price: 1200, category: "dessert", tag: "", img: "https://images.unsplash.com/photo-1624353365286-3f8d62daad51", desc: "Warm chocolate cake with a molten goo center, served with vanilla cream." }
-    ];
-
-    const categories = [
-        { id: 'all', name: 'All Dishes' },
-        { id: 'mains', name: 'Mains' },
-        { id: 'rice', name: 'Rice' },
-        { id: 'soup', name: 'Soups' },
-        { id: 'dessert', name: 'Desserts' }
-    ];
+    // --- 1. DATA (Loaded from PHP) ---
+    const menuData = <?php echo json_encode($processedMenuItems, JSON_PRETTY_PRINT); ?>;
+    const categories = <?php echo json_encode($processedCategories, JSON_PRETTY_PRINT); ?>;
 
     // --- 2. STATE ---
     let cart = [];
@@ -223,7 +323,7 @@
     function init() {
         renderCategories();
         menuContainer.innerHTML = Array(4).fill(0).map(() => getSkeletonCard()).join('');
-        setTimeout(() => { renderMenu(menuData); }, 600);
+        setTimeout(() => { renderMenu(menuData); }, 300);
     }
 
     function getSkeletonCard() {
@@ -281,13 +381,26 @@
         currentQty = 1;
         currentSize = 'Regular';
         document.getElementById('qtyInput').value = 1;
-        document.querySelectorAll('.size-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelector(".size-btn").classList.add('active'); // Select first one
 
         // Fill Data
         document.getElementById('detailImg').src = item.img;
         document.getElementById('detailTitle').innerText = item.name;
         document.getElementById('detailDesc').innerText = item.desc;
+
+        // Setup size options based on variants
+        const sizeOptionsContainer = document.querySelector('.size-options');
+        if (item.variants && item.variants.length > 0) {
+            // Build variant buttons
+            sizeOptionsContainer.innerHTML = item.variants.map((variant, idx) => 
+                `<button class="size-btn ${idx === 0 ? 'active' : ''}" onclick="selectSize('${variant.variant_name}')">${variant.variant_name}</button>`
+            ).join('');
+            currentSize = item.variants[0].variant_name;
+        } else {
+            // No variants, just show Regular
+            sizeOptionsContainer.innerHTML = '<button class="size-btn active" onclick="selectSize(\'Regular\')">Regular</button>';
+            currentSize = 'Regular';
+        }
+        
         updatePriceDisplay();
 
         // Switch Views
@@ -321,28 +434,44 @@
 
     function updatePriceDisplay() {
         let price = activeItem.price;
-        if(currentSize === 'Small') price = Math.round(price * 0.8); // Logic: Small is 20% cheaper
+        
+        // Find selected variant and get its price
+        if (activeItem.variants && activeItem.variants.length > 0) {
+            const selectedVariant = activeItem.variants.find(v => v.variant_name === currentSize);
+            if (selectedVariant) {
+                price = parseFloat(selectedVariant.price);
+            }
+        }
+        
         document.getElementById('detailPrice').innerText = `Rs. ${price.toLocaleString()}.00`;
     }
 
     // --- 7. CART LOGIC ---
 
     window.addToCartFromDetail = () => {
-        // Calculate final price based on size
+        // Get selected variant and its price
         let finalPrice = activeItem.price;
-        if(currentSize === 'Small') finalPrice = Math.round(finalPrice * 0.8);
+        let selectedVariant = null;
+        
+        if (activeItem.variants && activeItem.variants.length > 0) {
+            selectedVariant = activeItem.variants.find(v => v.variant_name === currentSize);
+            if (selectedVariant) {
+                finalPrice = parseFloat(selectedVariant.price);
+            }
+        }
 
         // Add item with specific details to cart
         const cartItem = {
             ...activeItem,
             selectedSize: currentSize,
             selectedQty: currentQty,
-            finalPrice: finalPrice
+            finalPrice: finalPrice,
+            variantId: selectedVariant?.id || null
         };
 
         // Add to global cart array (simple push for now)
         for(let i=0; i<currentQty; i++) {
-            cart.push({ ...cartItem, price: finalPrice }); // Push individual items for total calc
+            cart.push({ ...cartItem, price: finalPrice });
         }
 
         updateCartUI();
