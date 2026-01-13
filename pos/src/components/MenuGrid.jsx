@@ -59,7 +59,7 @@ export function MenuGrid({ items, onItemClick }) {
               <p className="text-xs text-gray-500 line-clamp-2 mt-1">{item.description}</p>
             )}
             <p className="text-lg font-bold text-orange-600 mt-2">
-              LKR {getDisplayPrice(item)}
+              Rs {getDisplayPrice(item)}
             </p>
             {item.variants && item.variants.length > 1 && (
               <p className="text-xs text-gray-500 mt-1">{item.variants.length} variants</p>

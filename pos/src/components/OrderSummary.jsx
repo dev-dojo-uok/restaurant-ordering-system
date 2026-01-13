@@ -67,7 +67,7 @@ export function OrderSummary({ items, onUpdateQuantity, onRemoveItem, onConfirmP
                   {item.variantName && (
                     <p className="text-xs text-orange-600 font-medium">{item.variantName}</p>
                   )}
-                  <p className="text-sm text-gray-600">LKR {parseFloat(item.price).toFixed(2)} each</p>
+                  <p className="text-sm text-gray-600">Rs {parseFloat(item.price).toFixed(2)} each</p>
                 </div>
                 <button
                   onClick={() => onRemoveItem(item.id)}
@@ -101,7 +101,7 @@ export function OrderSummary({ items, onUpdateQuantity, onRemoveItem, onConfirmP
                   </button>
                 </div>
                 <span className="font-bold text-gray-900">
-                  LKR {(item.price * item.quantity).toFixed(2)}
+                  Rs {(item.price * item.quantity).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -113,21 +113,21 @@ export function OrderSummary({ items, onUpdateQuantity, onRemoveItem, onConfirmP
       <div className="border-t border-gray-200 pt-4 space-y-2">
         <div className="flex justify-between text-sm">
           <span className="text-gray-600">Subtotal</span>
-          <span className="font-medium">LKR {subtotal.toFixed(2)}</span>
+          <span className="font-medium">Rs {subtotal.toFixed(2)}</span>
         </div>
         {/* <div className="flex justify-between text-sm">
           <span className="text-gray-600">Tax (8%)</span>
-          <span className="font-medium">LKR {taxes.toFixed(2)}</span>
+          <span className="font-medium">Rs {taxes.toFixed(2)}</span>
         </div> */}
         {discount > 0 && (
           <div className="flex justify-between text-sm text-green-600">
             <span>Discount</span>
-            <span>-LKR {discount.toFixed(2)}</span>
+            <span>-Rs {discount.toFixed(2)}</span>
           </div>
         )}
         <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t">
           <span>Grand Total</span>
-          <span className="text-orange-600">LKR {total.toFixed(2)}</span>
+          <span className="text-orange-600">Rs {total.toFixed(2)}</span>
         </div>
       </div>
 

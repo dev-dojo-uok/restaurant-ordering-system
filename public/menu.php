@@ -88,11 +88,21 @@ foreach ($menuItemsData as $item) {
     }
     
     $price = $defaultVariant ? (float)$defaultVariant['price'] : (float)$item['price'];
+
+    // Calculate min/max prices across variants (fallback to base price)
+    $variantPrices = array_values(array_filter(array_map(function ($variant) {
+        return isset($variant['price']) ? (float)$variant['price'] : null;
+    }, $variants), 'is_numeric'));
+
+    $minPrice = !empty($variantPrices) ? min($variantPrices) : (float)$item['price'];
+    $maxPrice = !empty($variantPrices) ? max($variantPrices) : (float)$item['price'];
     
     $processedMenuItems[] = [
         'id' => (int)$item['id'],
         'name' => $item['name'],
         'price' => $price,
+        'price_min' => $minPrice,
+        'price_max' => $maxPrice,
         'category' => $categorySlug,
         'categoryName' => $categoryMap[$item['category_id']] ?? '',
         'tag' => $tag,
@@ -319,6 +329,21 @@ foreach ($categoriesData as $cat) {
     const cartEl = document.getElementById('floatingCart');
     const toastContainer = document.getElementById('toastContainer');
 
+    // --- Helpers ---
+    const formatCurrency = (value) => {
+        const num = Number(value) || 0;
+        return `Rs. ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const formatPriceRange = (min, max) => {
+        const safeMin = Number(min ?? 0);
+        const safeMax = Number(max ?? min ?? 0);
+        if (Math.abs(safeMin - safeMax) < 0.0001) {
+            return formatCurrency(safeMin);
+        }
+        return `${formatCurrency(safeMin)} - ${formatCurrency(safeMax)}`;
+    };
+
     // --- 4. INIT ---
     function init() {
         renderCategories();
@@ -363,7 +388,7 @@ foreach ($categoriesData as $cat) {
                     </div>
                     <p class="card-desc">${item.desc.substring(0, 50)}...</p>
                     <div class="card-footer">
-                        <div class="price">Rs. ${item.price.toLocaleString()}</div>
+                        <div class="price">${formatPriceRange(item.price_min ?? item.price, item.price_max ?? item.price)}</div>
                         <button class="btn-view"><i class="fas fa-arrow-right"></i></button>
                     </div>
                 </div>
@@ -433,7 +458,7 @@ foreach ($categoriesData as $cat) {
     }
 
     function updatePriceDisplay() {
-        let price = activeItem.price;
+        let price = activeItem.price_min ?? activeItem.price;
         
         // Find selected variant and get its price
         if (activeItem.variants && activeItem.variants.length > 0) {
@@ -443,14 +468,14 @@ foreach ($categoriesData as $cat) {
             }
         }
         
-        document.getElementById('detailPrice').innerText = `Rs. ${price.toLocaleString()}.00`;
+        document.getElementById('detailPrice').innerText = formatCurrency(price);
     }
 
     // --- 7. CART LOGIC ---
 
     window.addToCartFromDetail = () => {
         // Get selected variant and its price
-        let finalPrice = activeItem.price;
+        let finalPrice = activeItem.price_min ?? activeItem.price;
         let selectedVariant = null;
         
         if (activeItem.variants && activeItem.variants.length > 0) {
@@ -486,7 +511,7 @@ foreach ($categoriesData as $cat) {
         const total = cart.reduce((sum, item) => sum + item.price, 0);
 
         document.getElementById('cartCount').innerText = `${count} Items`;
-        document.getElementById('cartTotal').innerText = `Rs. ${total.toLocaleString()}`;
+        document.getElementById('cartTotal').innerText = formatCurrency(total);
 
         if (count > 0) cartEl.classList.add('visible');
         else cartEl.classList.remove('visible');

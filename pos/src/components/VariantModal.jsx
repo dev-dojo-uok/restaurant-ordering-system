@@ -62,7 +62,7 @@ export function VariantModal({ item, isOpen, onClose, onAddToCart }) {
                       {variant.variant_name}
                     </span>
                     <span className="font-bold text-orange-600">
-                      LKR {parseFloat(variant.price).toFixed(2)}
+                      Rs {parseFloat(variant.price).toFixed(2)}
                     </span>
                   </button>
                 ))}
