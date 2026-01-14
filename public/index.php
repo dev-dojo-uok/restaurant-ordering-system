@@ -288,5 +288,6 @@ try {
             alert('Add to cart feature coming soon! Item ID: ' + itemId);
         }
     </script>
+    <script src="/assets/js/profile-icon.js"></script>
 </body>
 </html>
