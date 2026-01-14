@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/../app/config/database.php';
 
-// Fetch categories from database
+// --- 1. BACKEND: FETCH DATA ---
+
+// Fetch categories
 $categoriesStmt = $pdo->query("
     SELECT id, name, description, display_order, is_active 
     FROM menu_categories 
@@ -20,7 +22,6 @@ $menuItemsStmt = $pdo->query("
         mi.price,
         mi.image_url,
         mi.is_available,
-        mi.preparation_time,
         mi.is_featured,
         mi.is_special,
         mi.is_bestseller,
@@ -31,10 +32,8 @@ $menuItemsStmt = $pdo->query("
                     'variant_name', miv.variant_name,
                     'price', miv.price,
                     'is_default', miv.is_default,
-                    'is_available', miv.is_available,
                     'display_order', miv.display_order
-                )
-                ORDER BY miv.display_order, miv.id
+                ) ORDER BY miv.display_order, miv.id
             ) FILTER (WHERE miv.id IS NOT NULL),
             '[]'::json
         ) as variants
@@ -46,57 +45,52 @@ $menuItemsStmt = $pdo->query("
 ");
 $menuItemsData = $menuItemsStmt->fetchAll();
 
-// Process categories to create a map and category slug mapping
-$categoryMap = [];
-$categorySlugMap = []; // Maps category_id to slug for filtering
-$categoryIdToSlug = []; // Reverse map
+// Process Data for Frontend
+$categorySlugMap = [];
+$processedCategories = [['id' => 'all', 'name' => 'All Dishes']];
+
 foreach ($categoriesData as $cat) {
-    $categoryMap[$cat['id']] = $cat['name'];
-    
-    // Create a URL-friendly slug from category name
-    $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($cat['name'])));
-    $slug = trim($slug, '-');
+    $slug = strtolower(trim(preg_replace('/[^a-z0-9]+/i', '-', $cat['name']), '-'));
     $categorySlugMap[$cat['id']] = $slug;
-    $categoryIdToSlug[$slug] = $cat['id'];
+    $processedCategories[] = ['id' => $slug, 'name' => $cat['name']];
 }
 
-// Transform menu items for JavaScript
 $processedMenuItems = [];
 foreach ($menuItemsData as $item) {
-    // Get category slug
     $categorySlug = $categorySlugMap[$item['category_id']] ?? '';
     
-    // Determine tag
+    // Determine Tag
     $tag = '';
     if ($item['is_featured']) $tag = 'hot';
     elseif ($item['is_special']) $tag = 'new';
     elseif ($item['is_bestseller']) $tag = 'popular';
     
-    // Parse variants JSON
+    // Parse variants
     $variants = json_decode($item['variants'], true) ?? [];
     
-    // Get default variant price
-    $defaultVariant = null;
-    foreach ($variants as $v) {
-        if ($v['is_default']) {
-            $defaultVariant = $v;
-            break;
+    // Calculate Base Price and Range
+    $price = (float)$item['price'];
+    $minPrice = $price;
+    $maxPrice = $price;
+
+    if (!empty($variants)) {
+        $variantPrices = array_column($variants, 'price');
+        $minPrice = min($variantPrices);
+        $maxPrice = max($variantPrices);
+        
+        // Find default variant price
+        foreach ($variants as $v) {
+            if ($v['is_default']) {
+                $price = (float)$v['price'];
+                break;
+            }
+        }
+        // Fallback to first variant if no default
+        if ($price == (float)$item['price'] && isset($variants[0])) {
+            $price = (float)$variants[0]['price'];
         }
     }
-    if (!$defaultVariant && count($variants) > 0) {
-        $defaultVariant = $variants[0];
-    }
-    
-    $price = $defaultVariant ? (float)$defaultVariant['price'] : (float)$item['price'];
 
-    // Calculate min/max prices across variants (fallback to base price)
-    $variantPrices = array_values(array_filter(array_map(function ($variant) {
-        return isset($variant['price']) ? (float)$variant['price'] : null;
-    }, $variants), 'is_numeric'));
-
-    $minPrice = !empty($variantPrices) ? min($variantPrices) : (float)$item['price'];
-    $maxPrice = !empty($variantPrices) ? max($variantPrices) : (float)$item['price'];
-    
     $processedMenuItems[] = [
         'id' => (int)$item['id'],
         'name' => $item['name'],
@@ -104,23 +98,10 @@ foreach ($menuItemsData as $item) {
         'price_min' => $minPrice,
         'price_max' => $maxPrice,
         'category' => $categorySlug,
-        'categoryName' => $categoryMap[$item['category_id']] ?? '',
         'tag' => $tag,
-        'img' => $item['image_url'] ?: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c',
+        'img' => $item['image_url'] ?: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c', // Fallback image
         'desc' => $item['description'] ?: '',
         'variants' => $variants
-    ];
-}
-
-// Build categories list for filter (directly from database)
-$processedCategories = [['id' => 'all', 'name' => 'All Dishes']];
-foreach ($categoriesData as $cat) {
-    $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', trim($cat['name'])));
-    $slug = trim($slug, '-');
-    
-    $processedCategories[] = [
-        'id' => $slug,
-        'name' => $cat['name']
     ];
 }
 ?>
@@ -142,22 +123,20 @@ foreach ($categoriesData as $cat) {
             --text-grey: #747D8C;
             --bg-body: #F1F2F6;
             --white: #FFFFFF;
-            --glass: rgba(255, 255, 255, 0.85);
             --shadow: 0 10px 30px rgba(0,0,0,0.08);
             --radius: 20px;
             --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
-        
         body { background-color: var(--bg-body); color: var(--dark); padding-bottom: 100px; }
 
-        /* --- UTILITY CLASSES --- */
+        /* UTILS */
         .hidden { display: none !important; }
         .fade-in { animation: fadeIn 0.4s ease forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* --- HEADER --- */
+        /* HEADER */
         header {
             position: sticky; top: 0; z-index: 100;
             background: rgba(241, 242, 246, 0.95); backdrop-filter: blur(10px);
@@ -172,17 +151,17 @@ foreach ($categoriesData as $cat) {
         .search-bar input:focus { border-color: var(--primary); }
         .search-bar i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-grey); }
 
-        /* --- CATEGORIES --- */
+        /* CATEGORIES */
         .categories { padding: 30px 5%; display: flex; gap: 15px; overflow-x: auto; scrollbar-width: none; }
         .categories::-webkit-scrollbar { display: none; }
         .chip { padding: 10px 24px; border-radius: 50px; background: var(--white); color: var(--text-grey); font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: var(--transition); white-space: nowrap; border: 1px solid transparent; }
         .chip:hover { transform: translateY(-2px); color: var(--primary); }
         .chip.active { background: var(--primary); color: var(--white); box-shadow: 0 8px 20px rgba(255, 71, 87, 0.3); }
 
-        /* --- MENU GRID --- */
+        /* MENU GRID */
         .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px; padding: 0 5%; max-width: 1400px; margin: 0 auto; }
 
-        /* --- PRODUCT CARD --- */
+        /* CARD */
         .card { background: var(--white); border-radius: var(--radius); overflow: hidden; position: relative; box-shadow: var(--shadow); transition: var(--transition); cursor: pointer; }
         .card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
         .card-img-wrapper { height: 200px; overflow: hidden; position: relative; }
@@ -197,47 +176,53 @@ foreach ($categoriesData as $cat) {
         .card-desc { font-size: 13px; color: var(--text-grey); margin-bottom: 20px; line-height: 1.5; }
         .card-footer { display: flex; justify-content: space-between; align-items: center; }
         .price { font-size: 18px; font-weight: 700; color: var(--primary); }
-        
-        .btn-view { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--bg-body); color: var(--dark); cursor: pointer; transition: var(--transition); display: flex; align-items: center; justify-content: center; }
+        .btn-view { width: 40px; height: 40px; border-radius: 50%; background: var(--bg-body); color: var(--dark); border:none; display:flex; align-items:center; justify-content:center; cursor:pointer; transition: var(--transition); }
         .card:hover .btn-view { background: var(--primary); color: white; }
 
-        /* --- PRODUCT DETAIL VIEW (The New Section) --- */
+        /* PRODUCT DETAIL VIEW */
         .product-view { max-width: 1200px; margin: 20px auto; padding: 0 5%; display: grid; grid-template-columns: 1.2fr 1fr; gap: 50px; align-items: start; }
-        
         .pv-image-container img { width: 100%; border-radius: var(--radius); box-shadow: var(--shadow); }
-        
         .pv-details h1 { font-size: 36px; font-weight: 800; margin-bottom: 15px; color: var(--dark); }
         .pv-desc { color: var(--text-grey); line-height: 1.6; font-size: 16px; margin-bottom: 30px; }
         .pv-price { font-size: 32px; font-weight: 700; color: var(--primary); margin-bottom: 30px; }
-        
-        /* Selectors */
         .label { font-size: 14px; font-weight: 700; margin-bottom: 12px; display: block; color: var(--dark); }
-        
-        .size-options { display: flex; gap: 15px; margin-bottom: 30px; }
+        .size-options { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
         .size-btn { padding: 12px 30px; border: 2px solid #eee; background: #fff; border-radius: 12px; cursor: pointer; font-weight: 700; transition: var(--transition); color: var(--text-grey); }
-        .size-btn:hover { border-color: var(--primary); color: var(--primary); }
         .size-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 10px 20px rgba(255, 71, 87, 0.2); }
-
         .qty-wrapper { display: flex; align-items: center; background: #fff; border: 2px solid #eee; width: fit-content; border-radius: 12px; margin-bottom: 40px; }
         .qty-btn { background: transparent; border: none; padding: 15px 25px; font-size: 18px; cursor: pointer; color: var(--dark); }
-        .qty-btn:hover { color: var(--primary); }
         .qty-input { width: 50px; text-align: center; border: none; font-weight: 700; font-size: 18px; color: var(--dark); pointer-events: none; }
-
         .btn-large-add { width: 100%; padding: 18px; border: none; border-radius: 15px; background: var(--primary); color: #fff; font-weight: 700; font-size: 18px; cursor: pointer; transition: var(--transition); box-shadow: 0 10px 25px rgba(255, 71, 87, 0.3); display: flex; justify-content: center; gap: 10px; }
         .btn-large-add:hover { background: var(--primary-dark); transform: translateY(-2px); }
-
         .btn-back { padding: 10px 0; background: transparent; border: none; color: var(--text-grey); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 16px; }
-        .btn-back:hover { color: var(--dark); }
 
-        @media (max-width: 800px) { .product-view { grid-template-columns: 1fr; gap: 30px; } }
+        /* CART PAGE VIEW */
+        .cart-view { max-width: 1000px; margin: 20px auto; padding: 0 5%; display: grid; grid-template-columns: 1.5fr 1fr; gap: 40px; align-items: start; }
+        .cart-list { display: flex; flex-direction: column; gap: 20px; }
+        .cart-item { background: #fff; border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .cart-item img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; }
+        .cart-item-details { flex: 1; }
+        .cart-item-title { font-weight: 700; font-size: 16px; margin-bottom: 5px; color: var(--dark); }
+        .cart-item-variant { font-size: 13px; color: var(--text-grey); margin-bottom: 5px; }
+        .cart-item-price { font-weight: 700; color: var(--primary); }
+        .cart-controls { display: flex; align-items: center; gap: 10px; background: #f8f9fa; border-radius: 8px; padding: 5px; }
+        .cart-btn-qty { width: 25px; height: 25px; border: none; background: #fff; border-radius: 5px; cursor: pointer; font-weight: 700; color: var(--dark); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .cart-summary-box { background: #fff; border-radius: 20px; padding: 25px; box-shadow: var(--shadow); position: sticky; top: 100px; }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; color: var(--text-grey); }
+        .summary-row.total { border-top: 2px dashed #eee; padding-top: 20px; margin-top: 20px; font-weight: 800; font-size: 20px; color: var(--dark); }
+        .btn-checkout { width: 100%; padding: 18px; border: none; border-radius: 12px; background: var(--dark); color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
+        .btn-checkout:hover { background: var(--primary); transform: translateY(-2px); }
 
-        /* --- FLOATING CART --- */
+        @media (max-width: 800px) { 
+            .product-view, .cart-view { grid-template-columns: 1fr; }
+            .cart-summary-box { position: static; }
+        }
+
+        /* FLOATING CART & TOAST */
         .floating-cart { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--dark); color: white; padding: 15px 30px; border-radius: 50px; display: flex; align-items: center; gap: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); z-index: 1000; transition: var(--transition); cursor: pointer; }
         .floating-cart.visible { transform: translateX(-50%) translateY(0); }
         .cart-count { background: var(--primary); padding: 5px 12px; border-radius: 20px; font-weight: 700; font-size: 14px; }
         .cart-total { font-weight: 600; font-size: 16px; border-left: 1px solid #555; padding-left: 20px; }
-
-        /* --- TOAST --- */
         .toast-container { position: fixed; top: 100px; right: 20px; z-index: 9999; }
         .toast { background: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 10px; border-left: 4px solid var(--accent); display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s ease; }
         .toast i { color: var(--accent); }
@@ -246,7 +231,6 @@ foreach ($categoriesData as $cat) {
         /* Skeleton */
         .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-
     </style>
 </head>
 <body>
@@ -275,11 +259,9 @@ foreach ($categoriesData as $cat) {
             <p class="pv-desc" id="detailDesc">Description goes here...</p>
             <div class="pv-price" id="detailPrice">Rs. 0.00</div>
 
-            <label class="label">Portion Size</label>
+            <label class="label">Option / Size</label>
             <div class="size-options">
-                <button class="size-btn active" onclick="selectSize('Regular')">Regular</button>
-                <button class="size-btn" onclick="selectSize('Small')">Small</button>
-            </div>
+                </div>
 
             <label class="label">Quantity</label>
             <div class="qty-wrapper">
@@ -296,6 +278,31 @@ foreach ($categoriesData as $cat) {
         </div>
     </section>
 
+    <section id="cartViewWrapper" class="cart-view hidden">
+        <div class="cart-items-container">
+            <button class="btn-back" onclick="goBack()"><i class="fas fa-arrow-left"></i> Continue Ordering</button>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 25px;">Your Order</h1>
+            <div id="cartList" class="cart-list"></div>
+        </div>
+
+        <div class="cart-summary-box">
+            <h3 style="margin-bottom: 20px; font-weight: 700;">Payment Summary</h3>
+            <div class="summary-row">
+                <span>Subtotal</span>
+                <span id="summarySubtotal">Rs. 0.00</span>
+            </div>
+            <div class="summary-row">
+                <span>Service Charge (10%)</span>
+                <span id="summaryService">Rs. 0.00</span>
+            </div>
+            <div class="summary-row total">
+                <span>Total</span>
+                <span id="summaryTotal" style="color: var(--primary);">Rs. 0.00</span>
+            </div>
+            <button class="btn-checkout" onclick="placeOrder()">PLACE ORDER</button>
+        </div>
+    </section>
+
     <div class="floating-cart" id="floatingCart">
         <div class="cart-info" style="display:flex; align-items:center; gap:15px;">
             <i class="fas fa-shopping-bag"></i>
@@ -308,51 +315,36 @@ foreach ($categoriesData as $cat) {
     <div class="toast-container" id="toastContainer"></div>
 
 <script>
-    // --- 1. DATA (Loaded from PHP) ---
+    // --- DATA FROM PHP ---
     const menuData = <?php echo json_encode($processedMenuItems, JSON_PRETTY_PRINT); ?>;
     const categories = <?php echo json_encode($processedCategories, JSON_PRETTY_PRINT); ?>;
 
-    // --- 2. STATE ---
-    let cart = [];
+    // --- STATE ---
+    let cart = []; 
     let currentCategory = 'all';
-    
-    // Product Detail State
     let activeItem = null;
     let currentQty = 1;
     let currentSize = 'Regular';
 
-    // --- 3. DOM ELEMENTS ---
+    // --- DOM ELEMENTS ---
     const menuViewWrapper = document.getElementById('menuViewWrapper');
     const productViewWrapper = document.getElementById('productViewWrapper');
+    const cartViewWrapper = document.getElementById('cartViewWrapper');
     const menuContainer = document.getElementById('menuContainer');
     const categoryContainer = document.getElementById('categoryContainer');
     const cartEl = document.getElementById('floatingCart');
     const toastContainer = document.getElementById('toastContainer');
 
-    // --- Helpers ---
-    const formatCurrency = (value) => {
-        const num = Number(value) || 0;
-        return `Rs. ${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    };
+    // --- HELPERS ---
+    const formatCurrency = (val) => `Rs. ${Number(val||0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+    const formatPriceRange = (min, max) => (Math.abs(min-max)<0.1) ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`;
 
-    const formatPriceRange = (min, max) => {
-        const safeMin = Number(min ?? 0);
-        const safeMax = Number(max ?? min ?? 0);
-        if (Math.abs(safeMin - safeMax) < 0.0001) {
-            return formatCurrency(safeMin);
-        }
-        return `${formatCurrency(safeMin)} - ${formatCurrency(safeMax)}`;
-    };
-
-    // --- 4. INIT ---
+    // --- INIT ---
     function init() {
         renderCategories();
-        menuContainer.innerHTML = Array(4).fill(0).map(() => getSkeletonCard()).join('');
-        setTimeout(() => { renderMenu(menuData); }, 300);
-    }
-
-    function getSkeletonCard() {
-        return `<div class="card"><div class="card-img-wrapper skeleton" style="height:200px;"></div><div class="card-body"><div class="skeleton" style="height:20px; width:70%; margin-bottom:10px;"></div><div class="skeleton" style="height:15px; width:40%;"></div></div></div>`;
+        menuContainer.innerHTML = Array(4).fill(0).map(()=>`<div class="card"><div class="card-img-wrapper skeleton" style="height:200px;"></div><div class="card-body"><div class="skeleton" style="height:20px; width:70%; margin-bottom:10px;"></div><div class="skeleton" style="height:15px; width:40%;"></div></div></div>`).join('');
+        setTimeout(() => renderMenu(menuData), 300);
+        cartEl.addEventListener('click', openCartPage);
     }
 
     function renderCategories() {
@@ -364,31 +356,27 @@ foreach ($categoriesData as $cat) {
     function setCategory(id) {
         currentCategory = id;
         renderCategories();
-        const filtered = id === 'all' ? menuData : menuData.filter(item => item.category === id);
+        const filtered = id === 'all' ? menuData : menuData.filter(i => i.category === id);
         menuContainer.style.opacity = '0';
         setTimeout(() => { renderMenu(filtered); menuContainer.style.opacity = '1'; }, 200);
     }
 
-    // --- 5. RENDER MENU (With Click Event) ---
     function renderMenu(items) {
         if(items.length === 0) {
             menuContainer.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:50px;color:#aaa;">No items found.</div>`;
             return;
         }
-
-        menuContainer.innerHTML = items.map((item, index) => `
-            <article class="card" style="animation-delay: ${index * 0.05}s" onclick="openProduct(${item.id})">
-                <div class="card-img-wrapper">
-                    <img src="${item.img}" loading="lazy" alt="${item.name}">
-                </div>
+        menuContainer.innerHTML = items.map((item, i) => `
+            <article class="card" style="animation-delay: ${i*0.05}s" onclick="openProduct(${item.id})">
+                <div class="card-img-wrapper"><img src="${item.img}" loading="lazy" alt="${item.name}"></div>
                 <div class="card-body">
                     <div class="card-meta">
                         <div class="card-title">${item.name}</div>
-                        ${item.tag ? `<span class="badge ${item.tag === 'hot' ? 'hot' : 'new'}">${item.tag}</span>` : ''}
+                        ${item.tag ? `<span class="badge ${item.tag==='hot'?'hot':'new'}">${item.tag}</span>` : ''}
                     </div>
                     <p class="card-desc">${item.desc.substring(0, 50)}...</p>
                     <div class="card-footer">
-                        <div class="price">${formatPriceRange(item.price_min ?? item.price, item.price_max ?? item.price)}</div>
+                        <div class="price">${formatPriceRange(item.price_min, item.price_max)}</div>
                         <button class="btn-view"><i class="fas fa-arrow-right"></i></button>
                     </div>
                 </div>
@@ -396,151 +384,184 @@ foreach ($categoriesData as $cat) {
         `).join('');
     }
 
-    // --- 6. NAVIGATION & PRODUCT DETAIL LOGIC ---
-    
+    // --- NAVIGATION ---
     window.openProduct = (id) => {
         const item = menuData.find(i => i.id === id);
         activeItem = item;
-        
-        // Reset Inputs
         currentQty = 1;
-        currentSize = 'Regular';
         document.getElementById('qtyInput').value = 1;
 
-        // Fill Data
         document.getElementById('detailImg').src = item.img;
         document.getElementById('detailTitle').innerText = item.name;
         document.getElementById('detailDesc').innerText = item.desc;
 
-        // Setup size options based on variants
-        const sizeOptionsContainer = document.querySelector('.size-options');
+        // Variants
+        const sizeContainer = document.querySelector('.size-options');
         if (item.variants && item.variants.length > 0) {
-            // Build variant buttons
-            sizeOptionsContainer.innerHTML = item.variants.map((variant, idx) => 
-                `<button class="size-btn ${idx === 0 ? 'active' : ''}" onclick="selectSize('${variant.variant_name}')">${variant.variant_name}</button>`
+            sizeContainer.innerHTML = item.variants.map((v, idx) => 
+                `<button class="size-btn ${idx === 0 ? 'active' : ''}" onclick="selectSize('${v.variant_name}')">${v.variant_name}</button>`
             ).join('');
             currentSize = item.variants[0].variant_name;
         } else {
-            // No variants, just show Regular
-            sizeOptionsContainer.innerHTML = '<button class="size-btn active" onclick="selectSize(\'Regular\')">Regular</button>';
+            sizeContainer.innerHTML = '<button class="size-btn active" onclick="selectSize(\'Regular\')">Regular</button>';
             currentSize = 'Regular';
         }
         
         updatePriceDisplay();
-
-        // Switch Views
-        menuViewWrapper.classList.add('hidden');
-        productViewWrapper.classList.remove('hidden');
-        productViewWrapper.classList.add('fade-in');
-        window.scrollTo(0,0);
+        switchView('product');
     }
 
     window.goBack = () => {
-        productViewWrapper.classList.add('hidden');
-        menuViewWrapper.classList.remove('hidden');
-        menuViewWrapper.classList.add('fade-in');
+        switchView('menu');
+        updateCartUI();
     }
 
+    window.openCartPage = () => {
+        if(cart.length === 0) { showToast("Your cart is empty!"); return; }
+        renderCartPageItems();
+        switchView('cart');
+        cartEl.classList.remove('visible'); 
+    }
+
+    function switchView(view) {
+        menuViewWrapper.classList.add('hidden');
+        productViewWrapper.classList.add('hidden');
+        cartViewWrapper.classList.add('hidden');
+        window.scrollTo(0,0);
+
+        if(view === 'menu') {
+            menuViewWrapper.classList.remove('hidden');
+            menuViewWrapper.classList.add('fade-in');
+        } else if (view === 'product') {
+            productViewWrapper.classList.remove('hidden');
+            productViewWrapper.classList.add('fade-in');
+        } else if (view === 'cart') {
+            cartViewWrapper.classList.remove('hidden');
+            cartViewWrapper.classList.add('fade-in');
+        }
+    }
+
+    // --- PRODUCT LOGIC ---
     window.selectSize = (size) => {
         currentSize = size;
-        document.querySelectorAll('.size-btn').forEach(btn => {
-            btn.innerText === size ? btn.classList.add('active') : btn.classList.remove('active');
+        document.querySelectorAll('.size-btn').forEach(b => {
+            b.innerText === size ? b.classList.add('active') : b.classList.remove('active');
         });
         updatePriceDisplay();
     }
 
     window.updateQty = (change) => {
         const newQty = currentQty + change;
-        if(newQty >= 1) {
-            currentQty = newQty;
-            document.getElementById('qtyInput').value = currentQty;
-        }
+        if(newQty >= 1) { currentQty = newQty; document.getElementById('qtyInput').value = currentQty; }
     }
 
     function updatePriceDisplay() {
-        let price = activeItem.price_min ?? activeItem.price;
-        
-        // Find selected variant and get its price
+        let price = activeItem.price_min;
         if (activeItem.variants && activeItem.variants.length > 0) {
-            const selectedVariant = activeItem.variants.find(v => v.variant_name === currentSize);
-            if (selectedVariant) {
-                price = parseFloat(selectedVariant.price);
-            }
+            const v = activeItem.variants.find(v => v.variant_name === currentSize);
+            if (v) price = parseFloat(v.price);
         }
-        
         document.getElementById('detailPrice').innerText = formatCurrency(price);
     }
 
-    // --- 7. CART LOGIC ---
-
+    // --- CART LOGIC ---
     window.addToCartFromDetail = () => {
-        // Get selected variant and its price
-        let finalPrice = activeItem.price_min ?? activeItem.price;
-        let selectedVariant = null;
+        let finalPrice = activeItem.price_min;
+        let vId = 'def';
         
         if (activeItem.variants && activeItem.variants.length > 0) {
-            selectedVariant = activeItem.variants.find(v => v.variant_name === currentSize);
-            if (selectedVariant) {
-                finalPrice = parseFloat(selectedVariant.price);
-            }
+            const v = activeItem.variants.find(v => v.variant_name === currentSize);
+            if (v) { finalPrice = parseFloat(v.price); vId = v.id; }
         }
 
-        // Add item with specific details to cart
-        const cartItem = {
-            ...activeItem,
-            selectedSize: currentSize,
-            selectedQty: currentQty,
-            finalPrice: finalPrice,
-            variantId: selectedVariant?.id || null
-        };
-
-        // Add to global cart array (simple push for now)
-        for(let i=0; i<currentQty; i++) {
-            cart.push({ ...cartItem, price: finalPrice });
-        }
+        const cartItem = { ...activeItem, selectedSize: currentSize, variantId: vId, finalPrice: finalPrice };
+        for(let i=0; i<currentQty; i++) { cart.push({ ...cartItem, uniqueId: Date.now()+Math.random() }); }
 
         updateCartUI();
-        showToast(`${activeItem.name} (${currentSize}) added!`);
-        
-        // Optional: Go back automatically
-        // goBack();
+        showToast(`${activeItem.name} added!`);
+        goBack();
     }
 
     function updateCartUI() {
         const count = cart.length;
-        const total = cart.reduce((sum, item) => sum + item.price, 0);
-
+        const total = cart.reduce((sum, item) => sum + item.finalPrice, 0);
         document.getElementById('cartCount').innerText = `${count} Items`;
         document.getElementById('cartTotal').innerText = formatCurrency(total);
-
-        if (count > 0) cartEl.classList.add('visible');
+        if (count > 0 && cartViewWrapper.classList.contains('hidden')) cartEl.classList.add('visible');
         else cartEl.classList.remove('visible');
     }
 
-    function showToast(msg) {
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
-        toastContainer.appendChild(toast);
-        setTimeout(() => {
-            toast.style.animation = 'slideIn 0.3s reverse forwards';
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
+    function renderCartPageItems() {
+        const list = document.getElementById('cartList');
+        const grouped = {};
+        
+        cart.forEach(item => {
+            const key = `${item.id}-${item.selectedSize}`;
+            if (!grouped[key]) grouped[key] = { ...item, qty: 0 };
+            grouped[key].qty += 1;
+        });
+
+        const groupedArr = Object.values(grouped);
+        if(groupedArr.length === 0) { list.innerHTML = `<div style="text-align:center;color:#888;">Cart is empty</div>`; goBack(); return; }
+
+        list.innerHTML = groupedArr.map(item => `
+            <div class="cart-item">
+                <img src="${item.img}" alt="${item.name}">
+                <div class="cart-item-details">
+                    <div class="cart-item-title">${item.name}</div>
+                    <div class="cart-item-variant">Size: ${item.selectedSize}</div>
+                    <div class="cart-item-price">${formatCurrency(item.finalPrice * item.qty)}</div>
+                </div>
+                <div class="cart-controls">
+                    <button class="cart-btn-qty" onclick="modifyCartQty(${item.id}, '${item.selectedSize}', -1)">-</button>
+                    <span style="font-weight:600; font-size:14px; width:20px; text-align:center;">${item.qty}</span>
+                    <button class="cart-btn-qty" onclick="modifyCartQty(${item.id}, '${item.selectedSize}', 1)">+</button>
+                </div>
+            </div>
+        `).join('');
+
+        const subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
+        const service = subtotal * 0.10;
+        document.getElementById('summarySubtotal').innerText = formatCurrency(subtotal);
+        document.getElementById('summaryService').innerText = formatCurrency(service);
+        document.getElementById('summaryTotal').innerText = formatCurrency(subtotal + service);
     }
 
-    // Search Logic
+    window.modifyCartQty = (id, size, change) => {
+        if(change === 1) {
+            const item = cart.find(i => i.id === id && i.selectedSize === size);
+            if(item) cart.push({ ...item, uniqueId: Date.now() });
+        } else {
+            const idx = cart.findIndex(i => i.id === id && i.selectedSize === size);
+            if(idx > -1) cart.splice(idx, 1);
+        }
+        renderCartPageItems();
+        updateCartUI();
+    }
+
+    window.placeOrder = () => {
+        if(cart.length === 0) return;
+        showToast("Order Placed Successfully!");
+        cart = []; 
+        updateCartUI();
+        setTimeout(goBack, 1500);
+    }
+
+    function showToast(msg) {
+        const t = document.createElement('div');
+        t.className = 'toast';
+        t.innerHTML = `<i class="fas fa-check-circle"></i> <span>${msg}</span>`;
+        toastContainer.appendChild(t);
+        setTimeout(() => { t.style.animation='slideIn 0.3s reverse forwards'; setTimeout(()=>t.remove(), 300); }, 3000);
+    }
+
     document.getElementById('searchInput').addEventListener('input', (e) => {
         const term = e.target.value.toLowerCase();
-        if(productViewWrapper.classList.contains('hidden') === false) goBack(); // If searching, go back to grid
-        
-        const filtered = menuData.filter(item => 
-            item.name.toLowerCase().includes(term) || item.desc.toLowerCase().includes(term)
-        );
-        renderMenu(filtered);
+        if(menuViewWrapper.classList.contains('hidden')) goBack();
+        renderMenu(menuData.filter(i => i.name.toLowerCase().includes(term) || i.desc.toLowerCase().includes(term)));
     });
 
     init();
-
 </script>
 </body>
 </html>
