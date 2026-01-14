@@ -99,7 +99,7 @@ foreach ($menuItemsData as $item) {
         'price_max' => $maxPrice,
         'category' => $categorySlug,
         'tag' => $tag,
-        'img' => $item['image_url'] ?: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c', // Fallback image
+        'img' => $item['image_url'] ?: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c', 
         'desc' => $item['description'] ?: '',
         'variants' => $variants
     ];
@@ -196,26 +196,8 @@ foreach ($menuItemsData as $item) {
         .btn-large-add:hover { background: var(--primary-dark); transform: translateY(-2px); }
         .btn-back { padding: 10px 0; background: transparent; border: none; color: var(--text-grey); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; margin-bottom: 20px; font-size: 16px; }
 
-        /* CART PAGE VIEW */
-        .cart-view { max-width: 1000px; margin: 20px auto; padding: 0 5%; display: grid; grid-template-columns: 1.5fr 1fr; gap: 40px; align-items: start; }
-        .cart-list { display: flex; flex-direction: column; gap: 20px; }
-        .cart-item { background: #fff; border-radius: 15px; padding: 15px; display: flex; gap: 15px; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
-        .cart-item img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; }
-        .cart-item-details { flex: 1; }
-        .cart-item-title { font-weight: 700; font-size: 16px; margin-bottom: 5px; color: var(--dark); }
-        .cart-item-variant { font-size: 13px; color: var(--text-grey); margin-bottom: 5px; }
-        .cart-item-price { font-weight: 700; color: var(--primary); }
-        .cart-controls { display: flex; align-items: center; gap: 10px; background: #f8f9fa; border-radius: 8px; padding: 5px; }
-        .cart-btn-qty { width: 25px; height: 25px; border: none; background: #fff; border-radius: 5px; cursor: pointer; font-weight: 700; color: var(--dark); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .cart-summary-box { background: #fff; border-radius: 20px; padding: 25px; box-shadow: var(--shadow); position: sticky; top: 100px; }
-        .summary-row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; color: var(--text-grey); }
-        .summary-row.total { border-top: 2px dashed #eee; padding-top: 20px; margin-top: 20px; font-weight: 800; font-size: 20px; color: var(--dark); }
-        .btn-checkout { width: 100%; padding: 18px; border: none; border-radius: 12px; background: var(--dark); color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; margin-top: 20px; transition: 0.3s; }
-        .btn-checkout:hover { background: var(--primary); transform: translateY(-2px); }
-
         @media (max-width: 800px) { 
-            .product-view, .cart-view { grid-template-columns: 1fr; }
-            .cart-summary-box { position: static; }
+            .product-view { grid-template-columns: 1fr; }
         }
 
         /* FLOATING CART & TOAST */
@@ -223,6 +205,7 @@ foreach ($menuItemsData as $item) {
         .floating-cart.visible { transform: translateX(-50%) translateY(0); }
         .cart-count { background: var(--primary); padding: 5px 12px; border-radius: 20px; font-weight: 700; font-size: 14px; }
         .cart-total { font-weight: 600; font-size: 16px; border-left: 1px solid #555; padding-left: 20px; }
+        
         .toast-container { position: fixed; top: 100px; right: 20px; z-index: 9999; }
         .toast { background: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 10px; border-left: 4px solid var(--accent); display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s ease; }
         .toast i { color: var(--accent); }
@@ -278,31 +261,6 @@ foreach ($menuItemsData as $item) {
         </div>
     </section>
 
-    <section id="cartViewWrapper" class="cart-view hidden">
-        <div class="cart-items-container">
-            <button class="btn-back" onclick="goBack()"><i class="fas fa-arrow-left"></i> Continue Ordering</button>
-            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 25px;">Your Order</h1>
-            <div id="cartList" class="cart-list"></div>
-        </div>
-
-        <div class="cart-summary-box">
-            <h3 style="margin-bottom: 20px; font-weight: 700;">Payment Summary</h3>
-            <div class="summary-row">
-                <span>Subtotal</span>
-                <span id="summarySubtotal">Rs. 0.00</span>
-            </div>
-            <div class="summary-row">
-                <span>Service Charge (10%)</span>
-                <span id="summaryService">Rs. 0.00</span>
-            </div>
-            <div class="summary-row total">
-                <span>Total</span>
-                <span id="summaryTotal" style="color: var(--primary);">Rs. 0.00</span>
-            </div>
-            <button class="btn-checkout" onclick="placeOrder()">PLACE ORDER</button>
-        </div>
-    </section>
-
     <div class="floating-cart" id="floatingCart">
         <div class="cart-info" style="display:flex; align-items:center; gap:15px;">
             <i class="fas fa-shopping-bag"></i>
@@ -320,7 +278,9 @@ foreach ($menuItemsData as $item) {
     const categories = <?php echo json_encode($processedCategories, JSON_PRETTY_PRINT); ?>;
 
     // --- STATE ---
-    let cart = []; 
+    // Load existing cart from LocalStorage to keep count accurate
+    let cart = JSON.parse(localStorage.getItem('pos_cart')) || []; 
+    
     let currentCategory = 'all';
     let activeItem = null;
     let currentQty = 1;
@@ -329,7 +289,6 @@ foreach ($menuItemsData as $item) {
     // --- DOM ELEMENTS ---
     const menuViewWrapper = document.getElementById('menuViewWrapper');
     const productViewWrapper = document.getElementById('productViewWrapper');
-    const cartViewWrapper = document.getElementById('cartViewWrapper');
     const menuContainer = document.getElementById('menuContainer');
     const categoryContainer = document.getElementById('categoryContainer');
     const cartEl = document.getElementById('floatingCart');
@@ -342,9 +301,14 @@ foreach ($menuItemsData as $item) {
     // --- INIT ---
     function init() {
         renderCategories();
+        updateCartUI(); // Show cart bar if items exist
         menuContainer.innerHTML = Array(4).fill(0).map(()=>`<div class="card"><div class="card-img-wrapper skeleton" style="height:200px;"></div><div class="card-body"><div class="skeleton" style="height:20px; width:70%; margin-bottom:10px;"></div><div class="skeleton" style="height:15px; width:40%;"></div></div></div>`).join('');
         setTimeout(() => renderMenu(menuData), 300);
-        cartEl.addEventListener('click', openCartPage);
+        
+        // Navigation Listener to separate cart page
+        cartEl.addEventListener('click', () => {
+            window.location.href = 'cart.php';
+        });
     }
 
     function renderCategories() {
@@ -408,37 +372,18 @@ foreach ($menuItemsData as $item) {
         }
         
         updatePriceDisplay();
-        switchView('product');
+        
+        // Show Product Details Overlay
+        menuViewWrapper.classList.add('hidden');
+        productViewWrapper.classList.remove('hidden');
+        productViewWrapper.classList.add('fade-in');
+        window.scrollTo(0,0);
     }
 
     window.goBack = () => {
-        switchView('menu');
-        updateCartUI();
-    }
-
-    window.openCartPage = () => {
-        if(cart.length === 0) { showToast("Your cart is empty!"); return; }
-        renderCartPageItems();
-        switchView('cart');
-        cartEl.classList.remove('visible'); 
-    }
-
-    function switchView(view) {
-        menuViewWrapper.classList.add('hidden');
         productViewWrapper.classList.add('hidden');
-        cartViewWrapper.classList.add('hidden');
-        window.scrollTo(0,0);
-
-        if(view === 'menu') {
-            menuViewWrapper.classList.remove('hidden');
-            menuViewWrapper.classList.add('fade-in');
-        } else if (view === 'product') {
-            productViewWrapper.classList.remove('hidden');
-            productViewWrapper.classList.add('fade-in');
-        } else if (view === 'cart') {
-            cartViewWrapper.classList.remove('hidden');
-            cartViewWrapper.classList.add('fade-in');
-        }
+        menuViewWrapper.classList.remove('hidden');
+        menuViewWrapper.classList.add('fade-in');
     }
 
     // --- PRODUCT LOGIC ---
@@ -475,7 +420,14 @@ foreach ($menuItemsData as $item) {
         }
 
         const cartItem = { ...activeItem, selectedSize: currentSize, variantId: vId, finalPrice: finalPrice };
-        for(let i=0; i<currentQty; i++) { cart.push({ ...cartItem, uniqueId: Date.now()+Math.random() }); }
+        
+        // Push items to cart array
+        for(let i=0; i<currentQty; i++) { 
+            cart.push({ ...cartItem, uniqueId: Date.now()+Math.random() }); 
+        }
+
+        // SAVE TO LOCAL STORAGE (So cart.php can see it)
+        localStorage.setItem('pos_cart', JSON.stringify(cart));
 
         updateCartUI();
         showToast(`${activeItem.name} added!`);
@@ -487,64 +439,9 @@ foreach ($menuItemsData as $item) {
         const total = cart.reduce((sum, item) => sum + item.finalPrice, 0);
         document.getElementById('cartCount').innerText = `${count} Items`;
         document.getElementById('cartTotal').innerText = formatCurrency(total);
-        if (count > 0 && cartViewWrapper.classList.contains('hidden')) cartEl.classList.add('visible');
-        else cartEl.classList.remove('visible');
-    }
-
-    function renderCartPageItems() {
-        const list = document.getElementById('cartList');
-        const grouped = {};
         
-        cart.forEach(item => {
-            const key = `${item.id}-${item.selectedSize}`;
-            if (!grouped[key]) grouped[key] = { ...item, qty: 0 };
-            grouped[key].qty += 1;
-        });
-
-        const groupedArr = Object.values(grouped);
-        if(groupedArr.length === 0) { list.innerHTML = `<div style="text-align:center;color:#888;">Cart is empty</div>`; goBack(); return; }
-
-        list.innerHTML = groupedArr.map(item => `
-            <div class="cart-item">
-                <img src="${item.img}" alt="${item.name}">
-                <div class="cart-item-details">
-                    <div class="cart-item-title">${item.name}</div>
-                    <div class="cart-item-variant">Size: ${item.selectedSize}</div>
-                    <div class="cart-item-price">${formatCurrency(item.finalPrice * item.qty)}</div>
-                </div>
-                <div class="cart-controls">
-                    <button class="cart-btn-qty" onclick="modifyCartQty(${item.id}, '${item.selectedSize}', -1)">-</button>
-                    <span style="font-weight:600; font-size:14px; width:20px; text-align:center;">${item.qty}</span>
-                    <button class="cart-btn-qty" onclick="modifyCartQty(${item.id}, '${item.selectedSize}', 1)">+</button>
-                </div>
-            </div>
-        `).join('');
-
-        const subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
-        const service = subtotal * 0.10;
-        document.getElementById('summarySubtotal').innerText = formatCurrency(subtotal);
-        document.getElementById('summaryService').innerText = formatCurrency(service);
-        document.getElementById('summaryTotal').innerText = formatCurrency(subtotal + service);
-    }
-
-    window.modifyCartQty = (id, size, change) => {
-        if(change === 1) {
-            const item = cart.find(i => i.id === id && i.selectedSize === size);
-            if(item) cart.push({ ...item, uniqueId: Date.now() });
-        } else {
-            const idx = cart.findIndex(i => i.id === id && i.selectedSize === size);
-            if(idx > -1) cart.splice(idx, 1);
-        }
-        renderCartPageItems();
-        updateCartUI();
-    }
-
-    window.placeOrder = () => {
-        if(cart.length === 0) return;
-        showToast("Order Placed Successfully!");
-        cart = []; 
-        updateCartUI();
-        setTimeout(goBack, 1500);
+        if (count > 0) cartEl.classList.add('visible');
+        else cartEl.classList.remove('visible');
     }
 
     function showToast(msg) {
