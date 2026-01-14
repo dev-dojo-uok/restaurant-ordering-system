@@ -1,0 +1,131 @@
+/* PAGE RESET */
+.page-profile {
+    background: #f8f9fa;
+    min-height: 100vh;
+    display: block;
+}
+
+/* MAIN LAYOUT */
+.profile-page {
+    padding: 40px 20px;
+}
+
+.profile-container {
+    max-width: 1100px;
+    margin: auto;
+}
+
+/* HEADER */
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-bottom: 25px;
+}
+
+.avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #ff7a18;
+    color: #fff;
+    font-size: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.muted {
+    color: #6c757d;
+    font-size: 14px;
+}
+
+/* TABS */
+.tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.tab-btn.active {
+    background: #ff7a18;
+    color: #fff;
+    border-color: #ff7a18;
+}
+
+/* CARDS */
+.card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+}
+
+/* FORMS */
+.grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+@media (max-width: 768px) {
+    .grid-2 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.form-group label {
+    font-weight: 500;
+    color: #333;
+}
+
+.form-group input,
+.form-group textarea {
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid #ddd;
+}
+
+/* ACTIONS */
+.actions {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ORDERS */
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.order-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px;
+    border: 1px solid #eee;
+}
+
+.order-head {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 600;
+}
+
+.order-meta {
+    font-size: 13px;
+    color: #6c757d;
+    margin-top: 4px;
+}
+

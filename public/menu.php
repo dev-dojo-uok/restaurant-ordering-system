@@ -460,5 +460,6 @@ foreach ($menuItemsData as $item) {
 
     init();
 </script>
+<script src="/assets/js/profile-icon.js"></script>
 </body>
 </html>
