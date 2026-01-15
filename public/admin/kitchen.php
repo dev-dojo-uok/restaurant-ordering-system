@@ -70,8 +70,10 @@ $counts = $kitchenController->getOrderCounts();
                         <div class="card-body">
                             <ul class="item-list">
                                 <?php if (!empty($items)): ?>
-                                    <?php foreach ($items as $item): ?>
-                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($item['name']) ?></li>
+                                    <?php foreach ($items as $item): 
+                                        $label = trim($item['name'] . (!empty($item['variant']) ? ' (' . $item['variant'] . ')' : ''));
+                                    ?>
+                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($label) ?></li>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <li class="text-gray-500">No items</li>
@@ -109,8 +111,10 @@ $counts = $kitchenController->getOrderCounts();
                         <div class="card-body">
                             <ul class="item-list">
                                 <?php if (!empty($items)): ?>
-                                    <?php foreach ($items as $item): ?>
-                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($item['name']) ?></li>
+                                    <?php foreach ($items as $item): 
+                                        $label = trim($item['name'] . (!empty($item['variant']) ? ' (' . $item['variant'] . ')' : ''));
+                                    ?>
+                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($label) ?></li>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <li class="text-gray-500">No items</li>
@@ -148,8 +152,10 @@ $counts = $kitchenController->getOrderCounts();
                         <div class="card-body">
                             <ul class="item-list">
                                 <?php if (!empty($items)): ?>
-                                    <?php foreach ($items as $item): ?>
-                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($item['name']) ?></li>
+                                    <?php foreach ($items as $item): 
+                                        $label = trim($item['name'] . (!empty($item['variant']) ? ' (' . $item['variant'] . ')' : ''));
+                                    ?>
+                                        <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($label) ?></li>
                                     <?php endforeach; ?>
                                 <?php else: ?>
                                     <li class="text-gray-500">No items</li>
@@ -191,8 +197,10 @@ $counts = $kitchenController->getOrderCounts();
                     </div>
                     <div class="card-body">
                         <ul class="item-list">
-                            <?php foreach ($items as $item): ?>
-                                <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($item['name']) ?></li>
+                            <?php foreach ($items as $item): 
+                                $label = trim($item['name'] . (!empty($item['variant']) ? ' (' . $item['variant'] . ')' : ''));
+                            ?>
+                                <li><?= htmlspecialchars($item['quantity']) ?>x <?= htmlspecialchars($label) ?></li>
                             <?php endforeach; ?>
                         </ul>
                     </div>

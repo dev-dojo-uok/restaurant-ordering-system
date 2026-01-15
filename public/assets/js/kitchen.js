@@ -81,9 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (data.success) {
-                // Move card to next column
                 moveCardToNextStage(btn.closest('.order-card'), action);
                 showToast('Order updated successfully', 'success');
+                refreshCounts();
             } else {
                 showToast(data.message || 'Failed to update order', 'error');
                 btn.disabled = false;
@@ -181,6 +181,24 @@ document.addEventListener('DOMContentLoaded', () => {
             const servedEl = document.getElementById('count-served');
             let current = parseInt(servedEl.textContent) || 0;
             servedEl.textContent = current + 1;
+        }
+    }
+
+    /**
+     * Fetch live counts from the server (fast GET) to keep header badges synced
+     */
+    async function refreshCounts() {
+        try {
+            const res = await fetch('../api/kitchen.php');
+            const data = await res.json();
+            if (data.success && data.counts) {
+                document.getElementById('count-new').textContent = data.counts.new ?? 0;
+                document.getElementById('count-process').textContent = data.counts.process ?? 0;
+                document.getElementById('count-ready').textContent = data.counts.ready ?? 0;
+                document.getElementById('count-served').textContent = data.counts.served ?? 0;
+            }
+        } catch (err) {
+            console.error('Failed to refresh counts', err);
         }
     }
 

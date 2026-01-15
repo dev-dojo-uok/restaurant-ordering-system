@@ -21,7 +21,17 @@ if (!$userRole || !in_array($userRole, ['admin', 'kitchen'])) {
     exit;
 }
 
-// Only accept POST requests
+// Allow lightweight GET for counts (used by AJAX UI refresh), keep POST for updates
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $kitchenController = new KitchenController($pdo);
+    echo json_encode([
+        'success' => true,
+        'counts' => $kitchenController->getOrderCounts()
+    ]);
+    exit;
+}
+
+// Only accept POST requests for status updates
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);

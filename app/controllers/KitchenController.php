@@ -32,16 +32,21 @@ class KitchenController {
                 SELECT o.id, o.order_type, o.table_number, o.created_at, o.status,
                        o.customer_name, o.customer_phone,
                        COALESCE(u.full_name, o.customer_name) as customer,
-                       array_agg(
-                           json_build_object(
-                               'name', mi.name,
-                               'quantity', oi.quantity
-                           )
+                       COALESCE(
+                           json_agg(
+                               json_build_object(
+                                   'name', COALESCE(mi.name, oi.item_name),
+                                   'variant', v.variant_name,
+                                   'quantity', oi.quantity
+                               )
+                           ) FILTER (WHERE oi.id IS NOT NULL),
+                           '[]'::json
                        ) as items
                 FROM orders o
                 LEFT JOIN users u ON o.user_id = u.id
                 LEFT JOIN order_items oi ON o.id = oi.order_id
                 LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+                LEFT JOIN menu_item_variants v ON oi.variant_id = v.id
                 WHERE o.status = ANY(:statuses)
                 GROUP BY o.id, u.full_name
                 ORDER BY o.created_at ASC
@@ -62,16 +67,21 @@ class KitchenController {
                 SELECT o.id, o.order_type, o.table_number, o.created_at, o.status,
                        o.customer_name, o.completed_at,
                        COALESCE(u.full_name, o.customer_name) as customer,
-                       array_agg(
-                           json_build_object(
-                               'name', mi.name,
-                               'quantity', oi.quantity
-                           )
+                       COALESCE(
+                           json_agg(
+                               json_build_object(
+                                   'name', COALESCE(mi.name, oi.item_name),
+                                   'variant', v.variant_name,
+                                   'quantity', oi.quantity
+                               )
+                           ) FILTER (WHERE oi.id IS NOT NULL),
+                           '[]'::json
                        ) as items
                 FROM orders o
                 LEFT JOIN users u ON o.user_id = u.id
                 LEFT JOIN order_items oi ON o.id = oi.order_id
                 LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id
+                LEFT JOIN menu_item_variants v ON oi.variant_id = v.id
                 WHERE o.status IN ('delivered', 'completed', 'collected')
                   AND DATE(o.completed_at) = CURRENT_DATE
                 GROUP BY o.id, u.full_name
