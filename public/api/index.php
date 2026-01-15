@@ -129,6 +129,56 @@ if ($resource === 'users') {
     }
 }
 
+// USER ADDRESSES
+if ($resource === 'user-addresses') {
+    switch ($method) {
+        case 'GET':
+            $userId = isset($_GET['user_id']) ? intval($_GET['user_id']) : null;
+            if (!$userId) respond(400, ['error' => 'user_id is required']);
+            
+            $stmt = $pdo->prepare('SELECT * FROM user_addresses WHERE user_id = ? ORDER BY is_default DESC, updated_at DESC');
+            $stmt->execute([$userId]);
+            respond(200, $stmt->fetchAll());
+
+        case 'POST':
+            $d = getJsonBody();
+            $userId = $d['user_id'] ?? null;
+            if (!$userId) respond(400, ['error' => 'user_id is required']);
+            foreach (['address_type', 'street_address', 'city', 'state', 'zip_code'] as $req) {
+                if (empty($d[$req])) respond(400, ["error" => "$req is required"]);
+            }
+
+            $stmt = $pdo->prepare('INSERT INTO user_addresses (user_id, address_type, street_address, city, state, zip_code, phone) VALUES (?, ?, ?, ?, ?, ?, ?)');
+            $ok = $stmt->execute([$userId, $d['address_type'], $d['street_address'], $d['city'], $d['state'], $d['zip_code'], $d['phone'] ?? null]);
+            
+            if (!$ok) respond(500, ['error' => 'Failed to add address']);
+            respond(201, ['message' => 'Address added successfully', 'id' => $pdo->lastInsertId()]);
+
+        case 'PUT':
+            if (!$id) respond(400, ['error' => 'Address ID required']);
+            $d = getJsonBody();
+            $fields = []; $vals = [];
+            foreach (['address_type', 'street_address', 'city', 'state', 'zip_code', 'phone', 'is_default'] as $f) {
+                if (array_key_exists($f, $d)) { $fields[] = "$f = ?"; $vals[] = $d[$f]; }
+            }
+            if (!$fields) respond(400, ['error' => 'No fields to update']);
+            $vals[] = $id;
+            $sql = 'UPDATE user_addresses SET ' . implode(', ', $fields) . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+            $ok = $pdo->prepare($sql)->execute($vals);
+            if (!$ok) respond(500, ['error' => 'Failed to update address']);
+            respond(200, ['message' => 'Address updated']);
+
+        case 'DELETE':
+            if (!$id) respond(400, ['error' => 'Address ID required']);
+            $ok = $pdo->prepare('DELETE FROM user_addresses WHERE id = ?')->execute([$id]);
+            if (!$ok) respond(500, ['error' => 'Failed to delete address']);
+            respond(200, ['message' => 'Address deleted']);
+
+        default:
+            respond(405, ['error' => 'Method not allowed']);
+    }
+}
+
 // MENU CATEGORIES
 if ($resource === 'menu-categories') {
     switch ($method) {
