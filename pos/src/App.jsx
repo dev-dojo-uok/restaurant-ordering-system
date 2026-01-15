@@ -18,6 +18,9 @@ function App() {
   // Variant modal state
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // User dropdown state
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -60,23 +63,12 @@ function App() {
     }
   };
 
-  // Show loading while checking auth
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  // Show login if not authenticated
-  if (!user) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // Fetch categories and menu items
+  // Fetch categories and menu items when authenticated
   useEffect(() => {
+    if (!user) return;
+
     const fetchData = async () => {
+      setLoading(true);
       try {
         const [categoriesData, itemsData] = await Promise.all([
           api.getCategories(),
@@ -91,7 +83,21 @@ function App() {
       }
     };
     fetchData();
-  }, []);
+  }, [user]);
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   // Filter items by category
   const filteredItems = selectedCategory === 'all'
@@ -223,19 +229,54 @@ function App() {
               <p className="text-sm text-gray-500">Cashier Terminal</p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
-                <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-3 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl shadow-sm hover:bg-gray-100 hover:border-gray-300 transition-all"
+                >
+                  <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-700 font-semibold flex items-center justify-center uppercase">
+                    {user.full_name?.[0] ?? 'U'}
+                  </div>
+                  <div className="text-right leading-tight">
+                    <p className="text-sm font-semibold text-gray-900">{user.full_name}</p>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-orange-600 text-white">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c1.657 0 3-1.567 3-3.5S13.657 4 12 4s-3 1.567-3 3.5S10.343 11 12 11z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 20v-1.5A4.5 4.5 0 0110.5 14h3A4.5 4.5 0 0118 18.5V20" />
+                      </svg>
+                      {user.role}
+                    </span>
+                  </div>
+                  <svg className={cn("w-4 h-4 text-gray-500 transition-transform", showUserDropdown && "rotate-180")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
+                {/* Dropdown Menu */}
+                {showUserDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowUserDropdown(false)}
+                    ></div>
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-20">
+                      <div className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-semibold text-gray-900">{user.full_name}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                      </div>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Logout
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Logout
-              </button>
               <span className="text-sm text-gray-600">
                 {new Date().toLocaleDateString('en-US', { 
                   weekday: 'long', 

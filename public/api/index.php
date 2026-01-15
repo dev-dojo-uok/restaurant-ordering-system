@@ -3,9 +3,10 @@
 // Routes under /api/{resource}/{id?}
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Origin: http://localhost:3000');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Allow-Credentials: true');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
@@ -35,10 +36,10 @@ function parseRoute() {
     $segments = array_values(array_filter(explode('/', $path), fn($s) => $s !== ''));
     $resource = $segments[0] ?? '';
     $id = isset($segments[1]) && ctype_digit($segments[1]) ? intval($segments[1]) : null;
-    return [$resource, $id];
+    return [$resource, $id, $segments];
 }
 
-[$resource, $id] = parseRoute();
+[$resource, $id, $segments] = parseRoute();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($resource === '') {
@@ -434,6 +435,134 @@ if ($resource === 'order-items') {
             respond(200, ['message' => 'Order item deleted']);
         default:
             respond(405, ['error' => 'Method not allowed']);
+    }
+}
+
+// Auth endpoints
+if ($resource === 'auth') {
+    require_once __DIR__ . '/../../app/helpers/auth.php';
+    require_once __DIR__ . '/../../app/models/User.php';
+    
+    $userModel = new User($pdo);
+    $action = $segments[1] ?? '';
+    
+    if ($action === 'login' && $method === 'POST') {
+        $data = getJsonBody();
+        $username = $data['username'] ?? '';
+        $password = $data['password'] ?? '';
+        
+        if (empty($username) || empty($password)) {
+            respond(400, ['success' => false, 'message' => 'Username and password required']);
+        }
+        
+        $user = $userModel->getUserByUsername($username);
+        
+        if (!$user) {
+            respond(401, ['success' => false, 'message' => 'Invalid credentials']);
+        }
+        
+        if (!password_verify($password, $user['password'])) {
+            respond(401, ['success' => false, 'message' => 'Invalid credentials']);
+        }
+        
+        if (!$user['is_active']) {
+            respond(403, ['success' => false, 'message' => 'Account is inactive']);
+        }
+        
+        if (!in_array($user['role'], ['cashier', 'admin'])) {
+            respond(403, ['success' => false, 'message' => 'Access denied. POS is only for cashiers and admins.']);
+        }
+        
+        login($user);
+        
+        unset($user['password']);
+        respond(200, [
+            'success' => true,
+            'message' => 'Login successful',
+            'user' => $user
+        ]);
+    }
+    
+    if ($action === 'logout' && $method === 'POST') {
+        logout();
+        respond(200, ['success' => true, 'message' => 'Logged out successfully']);
+    }
+    
+    if ($action === 'check' && $method === 'GET') {
+        if (isLoggedIn()) {
+            $userId = getCurrentUserId();
+            $user = $userModel->getUserById($userId);
+            
+            if ($user) {
+                unset($user['password']);
+                respond(200, ['success' => true, 'user' => $user]);
+            }
+        }
+        respond(401, ['success' => false, 'message' => 'Not authenticated']);
+    }
+    
+    respond(404, ['success' => false, 'message' => 'Auth endpoint not found']);
+}
+
+// Kitchen endpoint for updating order status
+if ($resource === 'kitchen.php' || $resource === 'kitchen') {
+    require_once __DIR__ . '/../../app/helpers/auth.php';
+    require_once __DIR__ . '/../../app/controllers/KitchenController.php';
+    
+    // Check authentication
+    startSession();
+    $userRole = getCurrentUserRole();
+    
+    if (!$userRole || !in_array($userRole, ['admin', 'kitchen'])) {
+        respond(401, ['success' => false, 'message' => 'Unauthorized']);
+    }
+    
+    // Only accept POST requests
+    if ($method !== 'POST') {
+        respond(405, ['success' => false, 'message' => 'Method not allowed']);
+    }
+    
+    // Get JSON input
+    $input = getJsonBody();
+    
+    if (!$input) {
+        respond(400, ['success' => false, 'message' => 'Invalid JSON']);
+    }
+    
+    // Validate required fields
+    if (!isset($input['order_id']) || !isset($input['action'])) {
+        respond(400, ['success' => false, 'message' => 'Missing required fields']);
+    }
+    
+    $orderId = filter_var($input['order_id'], FILTER_VALIDATE_INT);
+    $action = trim($input['action']);
+    
+    if (!$orderId) {
+        respond(400, ['success' => false, 'message' => 'Invalid order ID']);
+    }
+    
+    // Validate action
+    $validActions = ['start', 'finish', 'served'];
+    if (!in_array($action, $validActions)) {
+        respond(400, ['success' => false, 'message' => 'Invalid action']);
+    }
+    
+    try {
+        $kitchenController = new KitchenController($pdo);
+        $result = $kitchenController->updateOrderStatus($orderId, $action);
+        
+        if ($result['success']) {
+            respond(200, $result);
+        } else {
+            respond(400, $result);
+        }
+        
+    } catch (Exception $e) {
+        error_log("Kitchen API Error: " . $e->getMessage());
+        respond(500, [
+            'success' => false,
+            'message' => 'Server error occurred'
+        ]);
     }
 }
 
