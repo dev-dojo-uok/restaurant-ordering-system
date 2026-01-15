@@ -7,7 +7,7 @@ COPY pos/package*.json ./
 RUN npm ci
 
 COPY pos/ ./
-RUN npm run build
+RUN DOCKER_BUILD=true npm run build
 
 # Stage 2: PHP Apache server with built POS app
 FROM php:8.2-apache

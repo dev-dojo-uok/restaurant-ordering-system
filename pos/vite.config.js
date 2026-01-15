@@ -11,7 +11,8 @@ export default defineConfig({
     tailwindcss(),
   ],
   build: {
-    outDir: path.resolve(__dirname, '../public/pos'),
+    // Use 'dist' in Docker, '../public/pos' for local development
+    outDir: process.env.DOCKER_BUILD ? 'dist' : path.resolve(__dirname, '../public/pos'),
     emptyOutDir: true,
   },
   server: {
