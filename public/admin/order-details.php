@@ -37,20 +37,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $itemId = $_POST['item_id'];
             $quantity = max(1, intval($_POST['quantity']));
             
-            // Get item price
-            $stmt = $pdo->prepare("SELECT price FROM order_items WHERE id = ?");
-            $stmt->execute([$itemId]);
-            $item = $stmt->fetch();
-            
-            $newSubtotal = $item['price'] * $quantity;
-            
-            $stmt = $pdo->prepare("UPDATE order_items SET quantity = ?, subtotal = ? WHERE id = ?");
-            $stmt->execute([$quantity, $newSubtotal, $itemId]);
+            // Update quantity
+            $stmt = $pdo->prepare("UPDATE order_items SET quantity = ? WHERE id = ?");
+            $stmt->execute([$quantity, $itemId]);
             
             // Recalculate order total
             $stmt = $pdo->prepare("
                 UPDATE orders 
-                SET total_amount = (SELECT SUM(subtotal) FROM order_items WHERE order_id = ?)
+                SET total_amount = (SELECT SUM(price * quantity) FROM order_items WHERE order_id = ?)
                 WHERE id = ?
             ");
             $stmt->execute([$orderId, $orderId]);
@@ -73,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Recalculate order total
                 $stmt = $pdo->prepare("
                     UPDATE orders 
-                    SET total_amount = (SELECT SUM(subtotal) FROM order_items WHERE order_id = ?)
+                    SET total_amount = (SELECT SUM(price * quantity) FROM order_items WHERE order_id = ?)
                     WHERE id = ?
                 ");
                 $stmt->execute([$orderId, $orderId]);
@@ -141,6 +135,15 @@ try {
     ");
     $stmt->execute([$orderId]);
     $orderItems = $stmt->fetchAll();
+    
+    // Fetch payment transactions
+    $stmt = $pdo->prepare("
+        SELECT * FROM payment_transactions 
+        WHERE order_id = ?
+        ORDER BY created_at
+    ");
+    $stmt->execute([$orderId]);
+    $paymentTransactions = $stmt->fetchAll();
     
 } catch (PDOException $e) {
     die("Error loading order: " . $e->getMessage());
@@ -425,7 +428,7 @@ $pageTitle = "Order #" . $orderId;
                                                onchange="this.form.submit()">
                                     </form>
                                 </td>
-                                <td>LKR <?= number_format($item['subtotal'], 2) ?></td>
+                                <td>LKR <?= number_format($item['price'] * $item['quantity'], 2) ?></td>
                                 <td>
                                     <form method="POST" style="display: inline;" 
                                           onsubmit="return confirm('Remove this item from the order?');">
@@ -476,17 +479,28 @@ $pageTitle = "Order #" . $orderId;
                 <div class="details-card" style="margin-bottom: 20px;">
                     <h3><i class="fas fa-credit-card"></i> Payment</h3>
                     
-                    <div class="info-row">
-                        <span class="info-label">Payment Method:</span>
-                        <span class="info-value"><?= ucfirst($order['payment_method']) ?></span>
-                    </div>
+                    <?php if (!empty($paymentTransactions)): ?>
+                        <div style="margin-bottom: 15px;">
+                            <label class="info-label">Payment Methods:</label>
+                            <?php foreach ($paymentTransactions as $payment): ?>
+                                <div class="info-row">
+                                    <span class="info-value" style="text-transform: uppercase; font-weight: 600;">
+                                        <?= htmlspecialchars($payment['payment_method']) ?>
+                                    </span>
+                                    <span class="info-value">LKR <?= number_format($payment['amount'], 2) ?></span>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                     
                     <form method="POST">
                         <input type="hidden" name="action" value="update_payment">
                         <label class="info-label">Payment Status</label>
                         <select name="payment_status" class="form-select">
                             <option value="pending" <?= $order['payment_status'] === 'pending' ? 'selected' : '' ?>>Pending</option>
-                            <option value="paid" <?= $order['payment_status'] === 'paid' ? 'selected' : '' ?>>Paid</option>
+                            <option value="completed" <?= $order['payment_status'] === 'completed' ? 'selected' : '' ?>>Completed</option>
+                            <option value="partial" <?= $order['payment_status'] === 'partial' ? 'selected' : '' ?>>Partial</option>
+                            <option value="refunded" <?= $order['payment_status'] === 'refunded' ? 'selected' : '' ?>>Refunded</option>
                         </select>
                         <div class="action-buttons">
                             <button type="submit" class="btn-update">

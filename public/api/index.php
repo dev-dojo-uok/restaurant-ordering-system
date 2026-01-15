@@ -304,7 +304,25 @@ if ($resource === 'orders') {
             $d = getJsonBody();
             foreach (['order_type','total_amount'] as $req) { if (!isset($d[$req])) respond(400, ['error' => "$req is required"]); }
             $userId = $d['user_id'] ?? null;
-            $stmt = $pdo->prepare('INSERT INTO orders (user_id, order_type, status, total_amount, customer_name, customer_phone, delivery_address, rider_id, table_number, payment_method, notes) VALUES (?, ?, COALESCE(?, \'' . 'ordered' . '\'), ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id');
+            
+            // Handle payment transactions (single or split payments)
+            $payments = $d['payments'] ?? [];
+            if (empty($payments)) {
+                // Legacy single payment method
+                $payments = [['method' => $d['payment_method'] ?? 'cash', 'amount' => $d['total_amount']]];
+            }
+            
+            // Validate total payment amount matches order total
+            $totalPaid = array_sum(array_column($payments, 'amount'));
+            if (abs($totalPaid - floatval($d['total_amount'])) > 0.01) {
+                respond(400, ['error' => 'Payment total does not match order total']);
+            }
+            
+            // Determine payment status
+            $paymentStatus = 'completed';
+            
+            // Create order
+            $stmt = $pdo->prepare('INSERT INTO orders (user_id, order_type, status, total_amount, customer_name, customer_phone, delivery_address, rider_id, table_number, payment_status, notes) VALUES (?, ?, COALESCE(?, \'' . 'ordered' . '\'), ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id');
             $stmt->execute([
                 $userId, 
                 $d['order_type'], 
@@ -315,10 +333,22 @@ if ($resource === 'orders') {
                 $d['delivery_address'] ?? null, 
                 $d['rider_id'] ?? null, 
                 $d['table_number'] ?? null,
-                $d['payment_method'] ?? 'cash',
+                $paymentStatus,
                 $d['notes'] ?? null
             ]);
             $orderId = $stmt->fetchColumn();
+            
+            // Insert payment transactions
+            $payStmt = $pdo->prepare('INSERT INTO payment_transactions (order_id, payment_method, amount, transaction_reference) VALUES (?, ?, ?, ?)');
+            foreach ($payments as $payment) {
+                $payStmt->execute([
+                    $orderId,
+                    $payment['method'],
+                    $payment['amount'],
+                    $payment['reference'] ?? null
+                ]);
+            }
+            
             // optional items array to create order_items
             if (isset($d['items']) && is_array($d['items'])) {
                 $oi = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, variant_id, quantity, price, item_name) VALUES (?, ?, ?, ?, ?, ?)');

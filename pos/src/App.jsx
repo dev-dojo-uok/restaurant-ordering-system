@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { MenuGrid } from './components/MenuGrid';
 import { OrderSummary } from './components/OrderSummary';
 import { VariantModal } from './components/VariantModal';
+import { Login } from './components/Login';
 import { api } from './services/api';
 import { cn } from './lib/utils';
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [categories, setCategories] = useState([]);
   const [menuItems, setMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -15,6 +18,61 @@ function App() {
   // Variant modal state
   const [selectedItem, setSelectedItem] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const storedUser = localStorage.getItem('pos_user');
+    if (storedUser) {
+      try {
+        const userData = JSON.parse(storedUser);
+        // Only allow cashier and admin
+        if (userData.role === 'cashier' || userData.role === 'admin') {
+          setUser(userData);
+        } else {
+          localStorage.removeItem('pos_user');
+        }
+      } catch (error) {
+        localStorage.removeItem('pos_user');
+      }
+    }
+    setIsCheckingAuth(false);
+  }, []);
+
+  const handleLoginSuccess = (userData) => {
+    // Only allow cashier and admin to access POS
+    if (userData.role === 'cashier' || userData.role === 'admin') {
+      setUser(userData);
+    } else {
+      alert('Access denied. POS is only for cashiers and admins.');
+      localStorage.removeItem('pos_user');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('pos_user');
+      setUser(null);
+      setOrderItems([]);
+    }
+  };
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  // Show login if not authenticated
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   // Fetch categories and menu items
   useEffect(() => {
@@ -121,13 +179,13 @@ function App() {
   };
 
   // Confirm payment and create order
-  const handleConfirmPayment = async ({ orderType, paymentMethod, total, notes }) => {
+  const handleConfirmPayment = async ({ orderType, payments, total, notes }) => {
     try {
       const orderData = {
         order_type: orderType,
         total_amount: total.toFixed(2),
         status: 'ordered',
-        payment_method: paymentMethod,
+        payments: payments,
         notes: notes || null,
         items: consolidatedOrderItems.map(item => ({
           menu_item_id: item.menuItemId,
@@ -141,7 +199,11 @@ function App() {
       const result = await api.createOrder(orderData);
       
       if (result.id) {
-        alert(`Order #${result.id} created successfully!`);
+        // Show detailed payment summary
+        const paymentSummary = payments.map(p => 
+          `${p.method.toUpperCase()}: Rs ${parseFloat(p.amount).toFixed(2)}`
+        ).join('\n');
+        alert(`Order #${result.id} created successfully!\n\nPayments:\n${paymentSummary}\n\nTotal: Rs ${total.toFixed(2)}`);
         setOrderItems([]); // Clear the order
       }
     } catch (error) {
@@ -161,6 +223,19 @@ function App() {
               <p className="text-sm text-gray-500">Cashier Terminal</p>
             </div>
             <div className="flex items-center gap-4">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{user.full_name}</p>
+                <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
               <span className="text-sm text-gray-600">
                 {new Date().toLocaleDateString('en-US', { 
                   weekday: 'long', 

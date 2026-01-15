@@ -1,6 +1,25 @@
 const API_BASE_URL = 'http://localhost:8080/api';
 
 export const api = {
+  // Auth
+  login: async (username, password) => {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ username, password }),
+    });
+    return res.json();
+  },
+
+  logout: async () => {
+    const res = await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    return res.json();
+  },
+
   // Menu Categories
   getCategories: async () => {
     const res = await fetch(`${API_BASE_URL}/menu-categories`);

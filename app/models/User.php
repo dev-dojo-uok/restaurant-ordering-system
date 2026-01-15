@@ -116,4 +116,13 @@ class User {
         $stmt->execute([$email]);
         return $stmt->fetchColumn() > 0;
     }
+
+    // Alias methods for API compatibility
+    public function getUserByUsername($username) {
+        return $this->findByUsername($username);
+    }
+
+    public function getUserById($id) {
+        return $this->findById($id);
+    }
 }
