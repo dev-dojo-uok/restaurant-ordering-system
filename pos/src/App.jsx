@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import toast, { Toaster } from 'react-hot-toast';
+import {Expand,Minimize} from "lucide-react"
 import { MenuGrid } from './components/MenuGrid';
 import { OrderSummary } from './components/OrderSummary';
 import { VariantModal } from './components/VariantModal';
@@ -14,6 +16,7 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [orderItems, setOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Variant modal state
   const [selectedItem, setSelectedItem] = useState(null);
@@ -21,6 +24,30 @@ function App() {
   
   // User dropdown state
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Fullscreen toggle handler
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    }
+  };
+
+  // Listen for fullscreen changes (e.g., user presses ESC)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -46,7 +73,7 @@ function App() {
     if (userData.role === 'cashier' || userData.role === 'admin') {
       setUser(userData);
     } else {
-      alert('Access denied. POS is only for cashiers and admins.');
+      toast.error('Access denied. POS is only for cashiers and admins.');
       localStorage.removeItem('pos_user');
     }
   };
@@ -185,7 +212,8 @@ function App() {
   };
 
   // Confirm payment and create order
-  const handleConfirmPayment = async ({ orderType, payments, total, notes }) => {
+  const handleConfirmPayment = async ({ orderType, payments, total, notes, tableNumber, resetForm }) => {
+    setIsSubmitting(true);
     try {
       const orderData = {
         order_type: orderType,
@@ -193,6 +221,7 @@ function App() {
         status: 'ordered',
         payments: payments,
         notes: notes || null,
+        table_number: tableNumber || null,
         items: consolidatedOrderItems.map(item => ({
           menu_item_id: item.menuItemId,
           variant_id: item.variantId,
@@ -208,27 +237,79 @@ function App() {
         // Show detailed payment summary
         const paymentSummary = payments.map(p => 
           `${p.method.toUpperCase()}: Rs ${parseFloat(p.amount).toFixed(2)}`
-        ).join('\n');
-        alert(`Order #${result.id} created successfully!\n\nPayments:\n${paymentSummary}\n\nTotal: Rs ${total.toFixed(2)}`);
-        setOrderItems([]); // Clear the order
+        ).join(', ');
+        
+        toast.success(
+          <div>
+            <p className="font-semibold">Order #{result.id} created successfully!</p>
+            <p className="text-sm mt-1">{paymentSummary}</p>
+            <p className="text-sm font-semibold mt-1">Total: Rs {total.toFixed(2)}</p>
+          </div>,
+          { duration: 5000 }
+        );
+        
+        // Clear the order and reset form
+        setOrderItems([]);
+        resetForm();
       }
     } catch (error) {
       console.error('Error creating order:', error);
-      alert('Failed to create order. Please try again.');
+      toast.error('Failed to create order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          success: {
+            duration: 5000,
+            style: {
+              background: '#10b981',
+              color: '#fff',
+            },
+          },
+          error: {
+            duration: 4000,
+            style: {
+              background: '#ef4444',
+              color: '#fff',
+            },
+          },
+        }}
+      />
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">POS System</h1>
+              <h1 className="text-2xl font-bold text-gray-900">Flavour POS</h1>
               <p className="text-sm text-gray-500">Cashier Terminal</p>
             </div>
+            <span className="text-sm text-gray-600">
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </span>
             <div className="flex items-center gap-4">
+              {/* Fullscreen Button */}
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-5 h-5" />
+                ) : (
+                  <Expand className="w-5 h-5" />
+                )}
+              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -277,14 +358,7 @@ function App() {
                   </>
                 )}
               </div>
-              <span className="text-sm text-gray-600">
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
-                })}
-              </span>
+              
             </div>
           </div>
         </div>
@@ -343,6 +417,7 @@ function App() {
             onUpdateQuantity={handleUpdateQuantity}
             onRemoveItem={handleRemoveItem}
             onConfirmPayment={handleConfirmPayment}
+            isSubmitting={isSubmitting}
           />
         </div>
       </div>

@@ -131,6 +131,26 @@
         .tab-btn.active { background: var(--dark); color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .tab-btn:hover:not(.active) { color: var(--primary); background: #fff; }
 
+        /* TIME OPTION BUTTONS (Inline) */
+        .time-option-container {
+            display: flex; gap: 10px; margin: 0 0 15px;
+        }
+        .time-option-btn {
+            flex: 1; padding: 12px 16px; border: 2px solid #e1e8ed;
+            background: #fff; border-radius: 10px; cursor: pointer;
+            font-weight: 700; font-size: 14px; color: var(--text-grey);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            transition: all 0.3s ease;
+        }
+        .time-option-btn i { font-size: 16px; }
+        .time-option-btn.active {
+            border-color: var(--primary); background: #fff5f6;
+            color: var(--primary);
+        }
+        .time-option-btn:hover:not(.active) {
+            border-color: #c3cfd9; background: #f8f9fa;
+        }
+
         /* FORMS */
         .tab-content { padding: 0 25px 25px; display: none; animation: fadeIn 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .tab-content.active { display: block; }
@@ -243,25 +263,29 @@
             </div>
 
             <div id="tab-delivery" class="tab-content active">
-                <div class="input-group">
-                    <input type="text" placeholder="Pick a date" onfocus="(this.type='date')" id="delDate">
-                    <i class="far fa-calendar-alt input-icon"></i>
+                <div class="time-option-container">
+                    <button class="time-option-btn active" id="btnASAP" onclick="selectDeliveryTime('asap')">
+                        <i class="fas fa-bolt"></i> ASAP
+                    </button>
+                    <button class="time-option-btn" id="btnLater" onclick="selectDeliveryTime('later')">
+                        <i class="fas fa-clock"></i> Later
+                    </button>
                 </div>
-                <div class="input-group">
-                    <input type="text" placeholder="Select Time" onfocus="(this.type='time')" id="delTime">
-                    <i class="far fa-clock input-icon"></i>
+                
+                <div id="delivery-datetime" style="display: none;">
+                    <div class="input-group">
+                        <input type="text" placeholder="Pick a date" onfocus="(this.type='date')" id="delDate">
+                        <i class="far fa-calendar-alt input-icon"></i>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" placeholder="Select Time" onfocus="(this.type='time')" id="delTime">
+                        <i class="far fa-clock input-icon"></i>
+                    </div>
                 </div>
             </div>
 
             <div id="tab-pickup" class="tab-content">
-                <div class="input-group">
-                    <input type="text" placeholder="Pick a date" onfocus="(this.type='date')" id="pickDate">
-                    <i class="far fa-calendar-alt input-icon"></i>
-                </div>
-                <div class="input-group">
-                    <input type="text" placeholder="Select Time" onfocus="(this.type='time')" id="pickTime">
-                    <i class="far fa-clock input-icon"></i>
-                </div>
+                <p style="font-size: 14px; color: var(--text-grey); padding: 10px 0;">Your order will be ready for pickup shortly.</p>
             </div>
 
             <div style="padding: 0 25px 25px;">
@@ -276,6 +300,7 @@
     // 1. INIT STATE
     let cart = JSON.parse(localStorage.getItem('pos_cart')) || [];
     let currentTab = 'delivery'; 
+    let deliveryTimeOption = 'asap'; // 'asap' or 'later'
     const DELIVERY_FEE = 350.00; 
     
     // Helpers
@@ -368,23 +393,49 @@
 
         updateTotals();
     }
+    
+    // 5b. SELECT DELIVERY TIME OPTION
+    window.selectDeliveryTime = (option) => {
+        deliveryTimeOption = option;
+        
+        const btnASAP = document.getElementById('btnASAP');
+        const btnLater = document.getElementById('btnLater');
+        const dateTimeDiv = document.getElementById('delivery-datetime');
+        
+        if (option === 'asap') {
+            btnASAP.classList.add('active');
+            btnLater.classList.remove('active');
+            dateTimeDiv.style.display = 'none';
+        } else {
+            btnASAP.classList.remove('active');
+            btnLater.classList.add('active');
+            dateTimeDiv.style.display = 'block';
+        }
+    }
 
     // 6. PLACE ORDER
     window.placeOrder = () => {
         if(cart.length === 0) return;
 
-        let date, time;
+        let orderInfo = '';
+        
         if (currentTab === 'delivery') {
-            date = document.getElementById('delDate').value;
-            time = document.getElementById('delTime').value;
-            if (!date || !time) { showToast("Please select delivery date & time!"); return; }
+            if (deliveryTimeOption === 'later') {
+                const date = document.getElementById('delDate').value;
+                const time = document.getElementById('delTime').value;
+                if (!date || !time) { 
+                    showToast("Please select delivery date & time!"); 
+                    return; 
+                }
+                orderInfo = `Delivery scheduled for ${date} at ${time}`;
+            } else {
+                orderInfo = 'Delivery ASAP';
+            }
         } else {
-            date = document.getElementById('pickDate').value;
-            time = document.getElementById('pickTime').value;
-            if (!date || !time) { showToast("Please select pickup date & time!"); return; }
+            orderInfo = 'Store Pickup';
         }
 
-        showToast(`Order Confirmed! Method: ${currentTab === 'delivery' ? 'Delivery' : 'Store Pickup'}`);
+        showToast(`Order Confirmed! ${orderInfo}`);
         cart = [];
         localStorage.removeItem('pos_cart');
         setTimeout(() => renderCartPageItems(), 1500);

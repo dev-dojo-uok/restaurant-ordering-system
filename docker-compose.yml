@@ -1,26 +1,67 @@
-# Docker Compose Configuration
-# This file defines two services: PostgreSQL database and PHP web server
+# Docker Compose Configuration for Food Ordering System
+# Services: PostgreSQL Database, PHP Web Server with React POS
 
 version: '3.8'
 
 services:
-  # PostgreSQL Database (already running, but defined here for completeness)  
-  # PHP Web Server
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: food-app-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: food_app
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - food-app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PHP Web Server with Apache
   web:
-    build: .
-    container_name: php-food-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: food-app-web
+    restart: unless-stopped
     ports:
       - "8080:80"
     volumes:
-      - .:/var/www/html
-    # depends_on:
-    #   - db
+      # Mount uploads directory for persistent storage
+      - ./public/uploads:/var/www/html/public/uploads
+      # Mount .env file for configuration
+      - ./.env:/var/www/html/.env
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: food_app
       DB_USER: postgres
       DB_PASS: password
+    networks:
+      - food-app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/menu-items"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  food-app-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+    driver: local
