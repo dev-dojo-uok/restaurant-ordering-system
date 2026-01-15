@@ -4,11 +4,14 @@
 -- =================================================
 
 -- Drop existing tables if they exist (for fresh start)
+DROP TABLE IF EXISTS payment_transactions CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS cart CASCADE;
+DROP TABLE IF EXISTS menu_item_variants CASCADE;
 DROP TABLE IF EXISTS menu_items CASCADE;
 DROP TABLE IF EXISTS menu_categories CASCADE;
+DROP TABLE IF EXISTS carousel_banners CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- =================================================
@@ -36,7 +39,23 @@ CREATE TABLE users (
 CREATE INDEX idx_users_role ON users(role);
 
 -- =================================================
--- 2. MENU CATEGORIES TABLE
+-- 2. CAROUSEL BANNERS TABLE
+-- Home page carousel/banner images
+-- =================================================
+CREATE TABLE carousel_banners (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,               -- Banner title
+    description TEXT,                          -- Banner description
+    image_url VARCHAR(255) NOT NULL,           -- Path to banner image
+    link_url VARCHAR(255),                     -- Optional link when clicked
+    is_active BOOLEAN DEFAULT true,            -- Show/hide banner
+    display_order INT DEFAULT 0,               -- For sorting banners
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =================================================
+-- 3. MENU CATEGORIES TABLE
 -- Pizza, Burgers, Drinks, etc.
 -- =================================================
 CREATE TABLE menu_categories (
@@ -49,7 +68,7 @@ CREATE TABLE menu_categories (
 );
 
 -- =================================================
--- 3. MENU ITEMS TABLE
+-- 4. MENU ITEMS TABLE
 -- Individual food items
 -- =================================================
 CREATE TABLE menu_items (
@@ -57,9 +76,11 @@ CREATE TABLE menu_items (
     category_id INT NOT NULL,                  -- Foreign key to categories
     name VARCHAR(100) NOT NULL,                -- Item name
     description TEXT,                          -- Item description
-    price DECIMAL(10, 2) NOT NULL,             -- Price (e.g., 9.99)
     image_url VARCHAR(255),                    -- Path to image
     is_available BOOLEAN DEFAULT true,         -- In stock or not
+    is_featured BOOLEAN DEFAULT false,         -- Featured/Hot item
+    is_special BOOLEAN DEFAULT false,          -- Special offer
+    is_bestseller BOOLEAN DEFAULT false,       -- Bestseller tag
     preparation_time INT DEFAULT 15,           -- Time in minutes
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -72,7 +93,32 @@ CREATE TABLE menu_items (
 CREATE INDEX idx_menu_items_category ON menu_items(category_id);
 
 -- =================================================
--- 4. CART TABLE
+-- 5. MENU ITEM VARIANTS TABLE
+-- Variants for menu items (e.g., Small, Medium, Large)
+-- =================================================
+CREATE TABLE menu_item_variants (
+    id SERIAL PRIMARY KEY,
+    menu_item_id INT NOT NULL,                 -- Which menu item
+    variant_name VARCHAR(50) NOT NULL,         -- e.g., "Small", "Medium", "Large", "Regular"
+    price DECIMAL(10, 2) NOT NULL,             -- Price for this variant
+    is_default BOOLEAN DEFAULT false,          -- Default variant to show
+    is_available BOOLEAN DEFAULT true,         -- Variant in stock
+    display_order INT DEFAULT 0,               -- For sorting variants
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Foreign key relationship
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+    
+    -- Each item can have unique variant names
+    UNIQUE(menu_item_id, variant_name)
+);
+
+-- Index for faster variant queries
+CREATE INDEX idx_menu_item_variants_item ON menu_item_variants(menu_item_id);
+
+-- =================================================
+-- 6. CART TABLE
 -- Temporary storage before order is placed
 -- Only used for delivery and takeaway orders
 -- =================================================
@@ -80,19 +126,21 @@ CREATE TABLE cart (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,                      -- Which customer's cart
     menu_item_id INT NOT NULL,                 -- Which item
+    variant_id INT,                            -- Which variant (nullable for legacy)
     quantity INT NOT NULL DEFAULT 1,           -- How many
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- Foreign keys
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
+    FOREIGN KEY (variant_id) REFERENCES menu_item_variants(id) ON DELETE CASCADE,
     
-    -- A user can't have duplicate items in cart (update quantity instead)
-    UNIQUE(user_id, menu_item_id)
+    -- A user can't have duplicate items+variant in cart (update quantity instead)
+    UNIQUE(user_id, menu_item_id, variant_id)
 );
 
 -- =================================================
--- 5. ORDERS TABLE
+-- 7. ORDERS TABLE
 -- Main orders table
 -- =================================================
 CREATE TABLE orders (
@@ -112,6 +160,10 @@ CREATE TABLE orders (
     
     -- Table number (only for dine-in)
     table_number INT,
+    
+    -- Payment and notes
+    payment_status VARCHAR(20) DEFAULT 'pending', -- pending, completed, refunded
+    notes TEXT,                                -- Special instructions or notes
     
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -145,57 +197,56 @@ CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_type ON orders(order_type);
 
 -- =================================================
--- 6. ORDER ITEMS TABLE
+-- 8. ORDER ITEMS TABLE
 -- Individual items within an order
 -- =================================================
 CREATE TABLE order_items (
     id SERIAL PRIMARY KEY,
     order_id INT NOT NULL,                     -- Which order
     menu_item_id INT NOT NULL,                 -- Which item was ordered
+    variant_id INT,                            -- Which variant was ordered
     quantity INT NOT NULL,                     -- How many
     price DECIMAL(10, 2) NOT NULL,             -- Price at time of order
     
     -- Store item details in case menu item is deleted later
     item_name VARCHAR(100) NOT NULL,
+    variant_name VARCHAR(50),                  -- Store variant name
     
     -- Foreign keys
     FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL
+    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE SET NULL,
+    FOREIGN KEY (variant_id) REFERENCES menu_item_variants(id) ON DELETE SET NULL
 );
 
 -- Index for faster order queries
 CREATE INDEX idx_order_items_order ON order_items(order_id);
 
 -- =================================================
--- SAMPLE DATA (Optional - for testing)
+-- 9. PAYMENT TRANSACTIONS TABLE
+-- Track split payments for orders
 -- =================================================
+CREATE TABLE payment_transactions (
+    id SERIAL PRIMARY KEY,
+    order_id INT NOT NULL,
+    payment_method VARCHAR(20) NOT NULL,       -- cash, card, online
+    amount DECIMAL(10, 2) NOT NULL,
+    transaction_reference VARCHAR(100),        -- For card/online transactions
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
 
--- Insert an admin user (password: admin123)
-INSERT INTO users (username, email, password, full_name, role) VALUES
-('admin', 'admin@restaurant.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin User', 'admin');
+CREATE INDEX idx_payment_transactions_order ON payment_transactions(order_id);
 
--- Note: The password above is hashed. To create it in PHP:
--- password_hash('admin123', PASSWORD_DEFAULT)
-
--- Insert some sample categories
-INSERT INTO menu_categories (name, description, display_order) VALUES
-('Pizzas', 'Delicious wood-fired pizzas', 1),
-('Burgers', 'Juicy gourmet burgers', 2),
-('Drinks', 'Refreshing beverages', 3),
-('Desserts', 'Sweet treats', 4);
-
--- Insert some sample menu items
-INSERT INTO menu_items (category_id, name, description, price, is_available, preparation_time) VALUES
-(1, 'Margherita Pizza', 'Classic pizza with tomato, mozzarella, and basil', 12.99, true, 20),
-(1, 'Pepperoni Pizza', 'Pizza loaded with pepperoni slices', 14.99, true, 20),
-(2, 'Classic Burger', 'Beef patty with lettuce, tomato, and cheese', 9.99, true, 15),
-(2, 'Chicken Burger', 'Grilled chicken with special sauce', 10.99, true, 15),
-(3, 'Coca Cola', 'Chilled soft drink', 2.99, true, 2),
-(3, 'Fresh Orange Juice', 'Freshly squeezed orange juice', 4.99, true, 5);
-
+-- =================================================
+-- TABLE COMMENTS
+-- =================================================
 COMMENT ON TABLE users IS 'Stores all system users with role-based access';
+COMMENT ON TABLE carousel_banners IS 'Home page carousel/banner images';
 COMMENT ON TABLE menu_categories IS 'Food categories for organizing menu';
-COMMENT ON TABLE menu_items IS 'Individual menu items with pricing';
+COMMENT ON TABLE menu_items IS 'Individual menu items without pricing';
+COMMENT ON TABLE menu_item_variants IS 'Size/variant options with pricing for menu items';
 COMMENT ON TABLE cart IS 'Temporary cart for customers before checkout';
 COMMENT ON TABLE orders IS 'Main orders table with order type and status';
 COMMENT ON TABLE order_items IS 'Line items for each order';
+COMMENT ON TABLE payment_transactions IS 'Payment records for split/multiple payments';

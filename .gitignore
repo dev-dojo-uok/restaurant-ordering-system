@@ -3,3 +3,27 @@ public/assignment/q2.php
 
 # Environment variables - contains sensitive credentials
 .env
+*.env
+app/config/.env
+!app/config/.env.example
+
+# Docker - dev overrides with exposed ports (keep for local development)
+# docker-compose.override.yml
+
+# Logs
+logs/*.log
+*.log
+
+# Vendor (if using Composer)
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

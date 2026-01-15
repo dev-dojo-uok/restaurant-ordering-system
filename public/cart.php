@@ -1,3 +1,10 @@
+<?php
+// Start session before any output to avoid header warnings
+require_once __DIR__ . '/../app/helpers/auth.php';
+startSession();
+$currentUserId = getCurrentUserId();
+$currentUserName = getCurrentUserName();
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,15 +34,6 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
         body { background-color: var(--bg-body); color: var(--dark); padding-bottom: 50px; }
-
-        /* HEADER */
-        header {
-            background: rgba(241, 242, 246, 0.95); backdrop-filter: blur(10px);
-            padding: 20px 5%; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03); margin-bottom: 30px;
-        }
-        .brand h1 { font-size: 24px; font-weight: 800; color: var(--dark); }
-        .brand span { color: var(--primary); }
         
         /* LAYOUT */
         .cart-view { 
@@ -216,10 +214,7 @@
 </head>
 <body>
 
-    <header>
-        <div class="brand"><h1>FLAVOR <span>POS</span>.</h1></div>
-        <a href="index.php" class="btn-back" style="margin:0"><i class="fas fa-home"></i> Menu</a>
-    </header>
+    <?php include __DIR__ . '/includes/navbar.php'; ?>
 
     <section class="cart-view">
         
@@ -302,9 +297,18 @@
     let currentTab = 'delivery'; 
     let deliveryTimeOption = 'asap'; // 'asap' or 'later'
     const DELIVERY_FEE = 350.00; 
+    const currentUserId = <?php echo json_encode($currentUserId); ?>;
+    const currentUserName = <?php echo json_encode($currentUserName); ?>;
     
     // Helpers
     const formatCurrency = (val) => `Rs. ${Number(val||0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+    const getTotals = () => {
+        const subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
+        const deliveryFee = cart.length > 0 && currentTab === 'delivery' ? DELIVERY_FEE : 0;
+        const total = subtotal + deliveryFee;
+        return { subtotal, deliveryFee, total };
+    };
 
     // 2. RENDER CART
     function renderCartPageItems() {
@@ -350,17 +354,9 @@
 
     // 3. UPDATE TOTALS
     function updateTotals() {
-        const subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
-        let finalDeliveryFee = 0;
-
-        if (cart.length > 0 && currentTab === 'delivery') {
-            finalDeliveryFee = DELIVERY_FEE;
-        }
-
-        const total = subtotal + finalDeliveryFee;
-
+        const { subtotal, deliveryFee, total } = getTotals();
         document.getElementById('summarySubtotal').innerText = formatCurrency(subtotal);
-        document.getElementById('summaryDelivery').innerText = formatCurrency(finalDeliveryFee);
+        document.getElementById('summaryDelivery').innerText = formatCurrency(deliveryFee);
         document.getElementById('summaryTotal').innerText = formatCurrency(total);
     }
 
@@ -414,7 +410,7 @@
     }
 
     // 6. PLACE ORDER
-    window.placeOrder = () => {
+    window.placeOrder = async () => {
         if(cart.length === 0) return;
 
         let orderInfo = '';
@@ -435,10 +431,60 @@
             orderInfo = 'Store Pickup';
         }
 
-        showToast(`Order Confirmed! ${orderInfo}`);
-        cart = [];
-        localStorage.removeItem('pos_cart');
-        setTimeout(() => renderCartPageItems(), 1500);
+        // Group items for API
+        const grouped = {};
+        cart.forEach(item => {
+            const key = `${item.id}-${item.selectedSize}`;
+            if (!grouped[key]) grouped[key] = { ...item, quantity: 0 };
+            grouped[key].quantity += 1;
+        });
+        const itemsPayload = Object.values(grouped).map(it => ({
+            menu_item_id: it.id,
+            variant_id: it.variantId !== 'def' ? it.variantId : null,
+            quantity: it.quantity,
+            price: it.finalPrice,
+            item_name: it.name,
+            variant_name: it.selectedSize
+        }));
+
+        const { total } = getTotals();
+        const payload = {
+            order_type: currentTab === 'delivery' ? 'delivery' : 'takeaway',
+            total_amount: total,
+            payment_method: 'cash',
+            payments: [{ method: 'cash', amount: total }],
+            notes: orderInfo,
+            user_id: currentUserId || null,
+            customer_name: currentUserName || 'Guest',
+            items: itemsPayload
+        };
+
+        const btn = document.querySelector('.btn-checkout');
+        const prevText = btn ? btn.innerText : '';
+        if (btn) { btn.innerText = 'Placing...'; btn.disabled = true; }
+
+        try {
+            const res = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to place order');
+            }
+
+            showToast(`Order Confirmed! ${orderInfo}`);
+            cart = [];
+            localStorage.removeItem('pos_cart');
+            setTimeout(() => window.location.href = '/orders.php', 800);
+        } catch (err) {
+            console.error('Order error', err);
+            showToast(err.message || 'Could not place order');
+        } finally {
+            if (btn) { btn.innerText = prevText || 'CONFIRM ORDER'; btn.disabled = false; }
+            renderCartPageItems();
+        }
     }
 
     function showToast(msg) {

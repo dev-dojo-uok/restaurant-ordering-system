@@ -1,0 +1,16 @@
+# Docker Compose Override for Development
+# This file is automatically loaded by docker-compose and overrides the base configuration
+# Use this for local development - DO NOT commit to production
+
+version: '3.8'
+
+services:
+  # Expose database port for local development tools
+  db:
+    ports:
+      - "5432:5432"
+
+  # Expose web server port for local access
+  web:
+    ports:
+      - "8080:80"

@@ -16,6 +16,7 @@ $errors = [];
 $success = '';
 $itemVariants = [];
 $variantsSupported = true;
+$fallbackPrice = 0;
 
 $uploadDir = realpath(__DIR__ . '/..') . '/uploads/menu/';
 $uploadBaseUrl = '/uploads/menu/';
@@ -46,6 +47,9 @@ try {
     $vStmt = $pdo->prepare("SELECT id, variant_name, price, is_default, display_order, is_available FROM menu_item_variants WHERE menu_item_id = ? ORDER BY display_order, id");
     $vStmt->execute([$itemId]);
     $itemVariants = $vStmt->fetchAll();
+    if (!empty($itemVariants)) {
+        $fallbackPrice = $itemVariants[0]['price'] ?? 0;
+    }
 } catch (Exception $variantLookupError) {
     $variantsSupported = false;
     $itemVariants = [];
@@ -54,7 +58,6 @@ try {
 $input = [
     'name' => $item['name'] ?? '',
     'category_id' => $item['category_id'] ?? '',
-    'price' => $item['price'] ?? '',
     'description' => $item['description'] ?? '',
     'image_url' => $item['image_url'] ?? '',
     'preparation_time' => $item['preparation_time'] ?? 15,
@@ -67,7 +70,6 @@ $input = [
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input['name'] = trim($_POST['name'] ?? '');
     $input['category_id'] = (int)($_POST['category_id'] ?? 0);
-    $input['price'] = trim($_POST['price'] ?? '');
     $input['description'] = trim($_POST['description'] ?? '');
     $input['image_url'] = trim($_POST['image_url'] ?? '');
     $input['preparation_time'] = (int)($_POST['preparation_time'] ?? 15);
@@ -138,8 +140,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($input['category_id'] <= 0) {
         $errors[] = 'Please choose a category.';
     }
-    if (($input['price'] === '' || !is_numeric($input['price'])) && !$hasVariantPrice) {
-        $errors[] = 'Please provide a base price or at least one variant with price.';
+    if (!$hasVariantPrice) {
+        $errors[] = 'Please add at least one variant price.';
     }
     if ($input['preparation_time'] < 0) {
         $errors[] = 'Preparation time cannot be negative.';
@@ -147,23 +149,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $basePrice = is_numeric($input['price']) ? $input['price'] : null;
-            if ($basePrice === null && $hasVariantPrice) {
-                $basePrice = $variants[0]['price'];
-            }
+            $basePrice = $hasVariantPrice ? $variants[0]['price'] : $fallbackPrice;
 
             $pdo->beginTransaction();
 
             $stmt = $pdo->prepare("
                 UPDATE menu_items
-                SET category_id = ?, name = ?, description = ?, price = ?, image_url = ?, is_available = ?, is_featured = ?, is_special = ?, is_bestseller = ?, preparation_time = ?, updated_at = CURRENT_TIMESTAMP
+                SET category_id = ?, name = ?, description = ?, image_url = ?, is_available = ?, is_featured = ?, is_special = ?, is_bestseller = ?, preparation_time = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             ");
             $stmt->execute([
                 $input['category_id'],
                 $input['name'],
                 $input['description'] ?: null,
-                $basePrice,
                 $input['image_url'] ?: null,
                 $input['is_available'] ? 1 : 0,
                 $input['is_featured'] ? 1 : 0,
@@ -190,14 +188,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ]);
                     }
 
-                    if ($basePrice === null) {
-                        $defaultPrice = $variants[$chosenDefault]['price'];
-                        $pdo->prepare("UPDATE menu_items SET price = ? WHERE id = ?")->execute([$defaultPrice, $itemId]);
-                    }
                 } else {
                     // If no variants provided, keep at least one default row matching current price
-                    $pdo->prepare("INSERT INTO menu_item_variants (menu_item_id, variant_name, price, is_default, display_order, is_available) VALUES (?, 'Regular', ?, true, 1, ?)")
-                        ->execute([$itemId, $basePrice, $input['is_available'] ? 1 : 0]);
+                        $pdo->prepare("INSERT INTO menu_item_variants (menu_item_id, variant_name, price, is_default, display_order, is_available) VALUES (?, 'Regular', ?, true, 1, ?)")
+                            ->execute([$itemId, $basePrice, $input['is_available'] ? 1 : 0]);
                 }
             }
 
@@ -276,10 +270,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-row">
-                            <div class="form-group">
-                                <label>Price (Rs) *</label>
-                                <input type="number" step="0.01" min="0" name="price" value="<?php echo htmlspecialchars($input['price']); ?>" required>
-                            </div>
                             <div class="form-group">
                                 <label>Preparation Time (minutes)</label>
                                 <input type="number" min="0" name="preparation_time" value="<?php echo htmlspecialchars((string)$input['preparation_time']); ?>">
@@ -507,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
                 normalizeDefaultRadios();
             } else {
-                const initialRow = createVariantRow('Regular', <?php echo json_encode((string)$input['price']); ?>, '0', true, true);
+                const initialRow = createVariantRow('Regular', <?php echo json_encode((string)$fallbackPrice); ?>, '0', true, true);
                 variantList.appendChild(initialRow);
                 normalizeDefaultRadios();
                 attachRowEvents(initialRow);

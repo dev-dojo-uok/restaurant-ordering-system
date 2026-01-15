@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-import {Expand,Minimize} from "lucide-react"
+import {Expand, Minimize, ShoppingCart, ClipboardList} from "lucide-react"
 import { MenuGrid } from './components/MenuGrid';
 import { OrderSummary } from './components/OrderSummary';
 import { VariantModal } from './components/VariantModal';
+import { OrdersView } from './components/OrdersView';
 import { Login } from './components/Login';
 import { api } from './services/api';
 import { cn } from './lib/utils';
@@ -17,6 +18,7 @@ function App() {
   const [orderItems, setOrderItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeView, setActiveView] = useState('pos'); // 'pos' or 'orders'
   
   // Variant modal state
   const [selectedItem, setSelectedItem] = useState(null);
@@ -228,6 +230,7 @@ function App() {
           quantity: item.quantity,
           price: item.price,
           item_name: `${item.name}${item.variantName ? ` - ${item.variantName}` : ''}`,
+          variant_name: item.variantName || null,
         })),
       };
 
@@ -287,7 +290,9 @@ function App() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Flavour POS</h1>
-              <p className="text-sm text-gray-500">Cashier Terminal</p>
+              <p className="text-sm text-gray-500">
+                {activeView === 'pos' ? 'Cashier Terminal' : 'Order Management'}
+              </p>
             </div>
             <span className="text-sm text-gray-600">
                 {new Date().toLocaleDateString('en-US', { 
@@ -298,18 +303,6 @@ function App() {
                 })}
               </span>
             <div className="flex items-center gap-4">
-              {/* Fullscreen Button */}
-              <button
-                onClick={toggleFullscreen}
-                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-              >
-                {isFullscreen ? (
-                  <Minimize className="w-5 h-5" />
-                ) : (
-                  <Expand className="w-5 h-5" />
-                )}
-              </button>
               <div className="relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -358,7 +351,6 @@ function App() {
                   </>
                 )}
               </div>
-              
             </div>
           </div>
         </div>
@@ -367,8 +359,68 @@ function App() {
       {/* Main Content */}
       <main className="h-[calc(100vh-88px)]">
         <div className="h-full flex">
-          {/* Left Side - Menu (2/3 width) */}
-          <div className="flex-1 w-2/3 p-6 overflow-y-auto">
+          {/* Left Sidebar */}
+          <div className="w-20 bg-gray-800 flex flex-col items-center py-6 gap-4">
+            {/* POS View Button */}
+            <button
+              onClick={() => setActiveView('pos')}
+              className={cn(
+                "w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all",
+                activeView === 'pos'
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-gray-400 hover:bg-gray-700 hover:text-white"
+              )}
+              title="POS Terminal"
+            >
+              <ShoppingCart className="w-6 h-6" />
+              <span className="text-[10px] font-medium">POS</span>
+            </button>
+
+            {/* Orders View Button */}
+            <button
+              onClick={() => setActiveView('orders')}
+              className={cn(
+                "w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all",
+                activeView === 'orders'
+                  ? "bg-orange-600 text-white shadow-lg"
+                  : "text-gray-400 hover:bg-gray-700 hover:text-white"
+              )}
+              title="View Orders"
+            >
+              <ClipboardList className="w-6 h-6" />
+              <span className="text-[10px] font-medium">Orders</span>
+            </button>
+
+            {/* Spacer */}
+            <div className="flex-1"></div>
+
+            {/* Fullscreen Button */}
+            <button
+              onClick={toggleFullscreen}
+              className={cn(
+                "w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-gray-400 hover:bg-gray-700 hover:text-white"
+              )}
+              title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            >
+              {isFullscreen ? (
+                <>
+                  <Minimize className="w-6 h-6" />
+                  <span className="text-[10px] font-medium">Exit</span>
+                </>
+              ) : (
+                <>
+                  <Expand className="w-6 h-6" />
+                  <span className="text-[10px] font-medium">Full</span>
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Main Content Area */}
+          {activeView === 'pos' ? (
+            <>
+              {/* Left Side - Menu (2/3 width) */}
+              <div className="flex-1 w-2/3 p-6 overflow-y-auto">
             {/* Category Filters */}
             <div className="mb-6">
               <div className="flex gap-2 flex-wrap">
@@ -420,6 +472,13 @@ function App() {
             isSubmitting={isSubmitting}
           />
         </div>
+      </>
+    ) : (
+      /* Orders View */
+      <div className="flex-1">
+        <OrdersView />
+      </div>
+    )}
       </div>
     </main>
 

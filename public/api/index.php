@@ -349,7 +349,20 @@ if ($resource === 'orders') {
                 } else {
                     $stmt = $pdo->query('SELECT * FROM orders ORDER BY created_at DESC');
                 }
-                respond(200, $stmt->fetchAll());
+                $orders = $stmt->fetchAll();
+                
+                // Fetch items and payments for each order
+                foreach ($orders as &$order) {
+                    $itemsStmt = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ?');
+                    $itemsStmt->execute([$order['id']]);
+                    $order['items'] = $itemsStmt->fetchAll();
+                    
+                    $paymentsStmt = $pdo->prepare('SELECT * FROM payment_transactions WHERE order_id = ?');
+                    $paymentsStmt->execute([$order['id']]);
+                    $order['payments'] = $paymentsStmt->fetchAll();
+                }
+                
+                respond(200, $orders);
             }
         case 'POST':
             $d = getJsonBody();
@@ -402,7 +415,7 @@ if ($resource === 'orders') {
             
             // optional items array to create order_items
             if (isset($d['items']) && is_array($d['items'])) {
-                $oi = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, variant_id, quantity, price, item_name) VALUES (?, ?, ?, ?, ?, ?)');
+                $oi = $pdo->prepare('INSERT INTO order_items (order_id, menu_item_id, variant_id, quantity, price, item_name, variant_name) VALUES (?, ?, ?, ?, ?, ?, ?)');
                 foreach ($d['items'] as $it) {
                     $oi->execute([
                         $orderId, 
@@ -410,7 +423,8 @@ if ($resource === 'orders') {
                         $it['variant_id'] ?? null,
                         intval($it['quantity'] ?? 1), 
                         $it['price'] ?? 0, 
-                        $it['item_name'] ?? 'Item'
+                        $it['item_name'] ?? 'Item',
+                        $it['variant_name'] ?? null
                     ]);
                 }
             }

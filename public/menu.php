@@ -1,4 +1,8 @@
 <?php
+// Start session first before any output
+require_once __DIR__ . '/../app/helpers/auth.php';
+startSession();
+
 require_once __DIR__ . '/../app/config/database.php';
 
 // --- 1. BACKEND: FETCH DATA ---
@@ -19,7 +23,6 @@ $menuItemsStmt = $pdo->query("
         mi.category_id,
         mi.name,
         mi.description,
-        mi.price,
         mi.image_url,
         mi.is_available,
         mi.is_featured,
@@ -38,7 +41,7 @@ $menuItemsStmt = $pdo->query("
             '[]'::json
         ) as variants
     FROM menu_items mi
-    LEFT JOIN menu_item_variants miv ON mi.id = miv.menu_item_id
+    LEFT JOIN menu_item_variants miv ON mi.id = miv.menu_item_id AND miv.is_available = true
     WHERE mi.is_available = true
     GROUP BY mi.id
     ORDER BY mi.name
@@ -68,10 +71,10 @@ foreach ($menuItemsData as $item) {
     // Parse variants
     $variants = json_decode($item['variants'], true) ?? [];
     
-    // Calculate Base Price and Range
-    $price = (float)$item['price'];
-    $minPrice = $price;
-    $maxPrice = $price;
+    // Calculate Base Price and Range from variants
+    $price = 0;
+    $minPrice = 0;
+    $maxPrice = 0;
 
     if (!empty($variants)) {
         $variantPrices = array_column($variants, 'price');
@@ -86,7 +89,7 @@ foreach ($menuItemsData as $item) {
             }
         }
         // Fallback to first variant if no default
-        if ($price == (float)$item['price'] && isset($variants[0])) {
+        if ($price == 0 && isset($variants[0])) {
             $price = (float)$variants[0]['price'];
         }
     }
@@ -135,21 +138,6 @@ foreach ($menuItemsData as $item) {
         .hidden { display: none !important; }
         .fade-in { animation: fadeIn 0.4s ease forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        /* HEADER */
-        header {
-            position: sticky; top: 0; z-index: 100;
-            background: rgba(241, 242, 246, 0.95); backdrop-filter: blur(10px);
-            padding: 20px 5%; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
-        }
-        .brand h1 { font-size: 24px; font-weight: 800; color: var(--dark); }
-        .brand span { color: var(--primary); }
-        .search-bar { position: relative; width: 100%; max-width: 400px; display: none; }
-        @media(min-width: 600px) { .search-bar { display: block; } }
-        .search-bar input { width: 100%; padding: 12px 20px 12px 45px; border-radius: 50px; border: 2px solid transparent; background: var(--white); box-shadow: var(--shadow); outline: none; transition: var(--transition); }
-        .search-bar input:focus { border-color: var(--primary); }
-        .search-bar i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-grey); }
 
         /* CATEGORIES */
         .categories { padding: 30px 5%; display: flex; gap: 15px; overflow-x: auto; scrollbar-width: none; }
@@ -218,15 +206,7 @@ foreach ($menuItemsData as $item) {
 </head>
 <body>
 
-    <header>
-        <div class="brand"><h1>FLAVOR <span>POS</span>.</h1></div>
-        <div class="search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" id="searchInput" placeholder="Search for dishes...">
-        </div>
-        <div style="font-size: 24px; cursor: pointer;"><i class="far fa-user-circle"></i></div>
-    </header>
-
+    <?php include __DIR__ . '/includes/navbar.php'; ?>
     <div id="menuViewWrapper">
         <nav class="categories" id="categoryContainer"></nav>
         <main class="menu-grid" id="menuContainer"></main>
@@ -285,6 +265,8 @@ foreach ($menuItemsData as $item) {
     let activeItem = null;
     let currentQty = 1;
     let currentSize = 'Regular';
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialSearchTerm = (searchParams.get('q') || '').trim();
 
     // --- DOM ELEMENTS ---
     const menuViewWrapper = document.getElementById('menuViewWrapper');
@@ -297,13 +279,27 @@ foreach ($menuItemsData as $item) {
     // --- HELPERS ---
     const formatCurrency = (val) => `Rs. ${Number(val||0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
     const formatPriceRange = (min, max) => (Math.abs(min-max)<0.1) ? formatCurrency(min) : `${formatCurrency(min)} - ${formatCurrency(max)}`;
+    const filterMenuByTerm = (term) => {
+        const normalized = (term || '').toLowerCase();
+        if (!normalized) return menuData;
+        return menuData.filter(i => 
+            i.name.toLowerCase().includes(normalized) ||
+            i.desc.toLowerCase().includes(normalized)
+        );
+    };
 
     // --- INIT ---
     function init() {
         renderCategories();
         updateCartUI(); // Show cart bar if items exist
         menuContainer.innerHTML = Array(4).fill(0).map(()=>`<div class="card"><div class="card-img-wrapper skeleton" style="height:200px;"></div><div class="card-body"><div class="skeleton" style="height:20px; width:70%; margin-bottom:10px;"></div><div class="skeleton" style="height:15px; width:40%;"></div></div></div>`).join('');
-        setTimeout(() => renderMenu(menuData), 300);
+        setTimeout(() => {
+            if (initialSearchTerm) {
+                applySearch(initialSearchTerm);
+            } else {
+                renderMenu(menuData);
+            }
+        }, 300);
         
         // Navigation Listener to separate cart page
         cartEl.addEventListener('click', () => {
@@ -452,14 +448,13 @@ foreach ($menuItemsData as $item) {
         setTimeout(() => { t.style.animation='slideIn 0.3s reverse forwards'; setTimeout(()=>t.remove(), 300); }, 3000);
     }
 
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        const term = e.target.value.toLowerCase();
+    function applySearch(term) {
+        const filtered = filterMenuByTerm(term);
         if(menuViewWrapper.classList.contains('hidden')) goBack();
-        renderMenu(menuData.filter(i => i.name.toLowerCase().includes(term) || i.desc.toLowerCase().includes(term)));
-    });
+        renderMenu(filtered);
+    }
 
     init();
 </script>
-<script src="/assets/js/profile-icon.js"></script>
 </body>
 </html>
