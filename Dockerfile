@@ -4,7 +4,7 @@ FROM node:20-alpine AS pos-builder
 
 WORKDIR /app
 COPY pos/package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 COPY pos/ ./
 RUN npm run build
