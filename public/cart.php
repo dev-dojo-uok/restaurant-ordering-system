@@ -9,16 +9,20 @@
 
     <style>
         :root {
-            --primary: #FF4757;
+            /* EXACT COLORS */
+            --primary: #FF4757;       
             --primary-dark: #E8414F;
             --accent: #2ED573;
-            --dark: #2F3542;
+            --dark: #2F3542;          
+            --dark-hover: #1e272e;
             --text-grey: #747D8C;
             --bg-body: #F1F2F6;
             --white: #FFFFFF;
             --shadow: 0 10px 30px rgba(0,0,0,0.08);
-            --radius: 20px;
-            --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            --radius: 20px;           
+            
+            /* SMOOTH ANIMATION CURVE */
+            --transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); 
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -33,87 +37,158 @@
         .brand h1 { font-size: 24px; font-weight: 800; color: var(--dark); }
         .brand span { color: var(--primary); }
         
-        /* CART LAYOUT */
+        /* LAYOUT */
         .cart-view { 
-            max-width: 1000px; 
+            max-width: 1100px; 
             margin: 0 auto; 
             padding: 0 5%; 
             display: grid; 
-            grid-template-columns: 1.5fr 1fr; 
+            grid-template-columns: 1.4fr 1fr; 
             gap: 40px; 
             align-items: start; 
         }
 
-        /* LEFT: ITEMS LIST */
+        /* LEFT: CART ITEMS */
         .cart-list { display: flex; flex-direction: column; gap: 20px; }
         
         .cart-item { 
-            background: #fff; 
-            border-radius: 15px; 
-            padding: 15px; 
+            background: var(--white); 
+            border-radius: var(--radius); 
+            padding: 20px; 
             display: flex; 
-            gap: 15px; 
+            gap: 20px; 
             align-items: center; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05); 
-            transition: var(--transition);
+            box-shadow: var(--shadow);
+            transition: var(--transition); 
+            border: 1px solid transparent;
         }
         
-        .cart-item img { width: 80px; height: 80px; border-radius: 10px; object-fit: cover; }
+        .cart-item:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
+
+        .cart-item img { width: 80px; height: 80px; border-radius: 12px; object-fit: cover; }
         .cart-item-details { flex: 1; }
-        .cart-item-title { font-weight: 700; font-size: 16px; margin-bottom: 5px; color: var(--dark); }
-        .cart-item-variant { font-size: 13px; color: var(--text-grey); margin-bottom: 5px; }
-        .cart-item-price { font-weight: 700; color: var(--primary); }
+        .cart-item-title { font-weight: 700; font-size: 16px; margin-bottom: 4px; color: var(--dark); }
+        .cart-item-variant { font-size: 13px; color: var(--text-grey); margin-bottom: 4px; }
+        .cart-item-price { font-weight: 700; color: var(--primary); font-size: 16px; }
         
-        /* CONTROLS (+/-) */
-        .cart-controls { display: flex; align-items: center; gap: 10px; background: #f8f9fa; border-radius: 8px; padding: 5px; }
-        .cart-btn-qty { width: 25px; height: 25px; border: none; background: #fff; border-radius: 5px; cursor: pointer; font-weight: 700; color: var(--dark); box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.2s; }
-        .cart-btn-qty:hover { background: var(--primary); color: white; }
+        .cart-controls { display: flex; align-items: center; gap: 10px; background: #f1f2f6; border-radius: 12px; padding: 5px; }
+        .cart-btn-qty { 
+            width: 30px; height: 30px; border: none; background: #fff; border-radius: 8px; 
+            cursor: pointer; font-weight: 700; color: var(--dark); 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); 
+            transition: var(--transition); 
+        }
+        .cart-btn-qty:hover { background: var(--primary); color: white; transform: translateY(-2px); }
 
         /* RIGHT: SUMMARY BOX */
         .cart-summary-box { 
-            background: #fff; 
-            border-radius: 20px; 
-            padding: 25px; 
+            background: var(--white); 
+            border-radius: var(--radius);
+            padding: 0;
             box-shadow: var(--shadow); 
             position: sticky; 
             top: 20px; 
+            overflow: hidden;
+        }
+
+        .summary-header {
+            padding: 25px 25px 15px;
+            border-bottom: 2px solid var(--bg-body);
+        }
+        .summary-header h3 { font-size: 20px; font-weight: 800; color: var(--dark); }
+        
+        .price-row {
+            display: flex; justify-content: space-between; padding: 10px 25px;
+            font-size: 15px; color: var(--text-grey); font-weight: 500;
+        }
+        .price-row.total {
+            border-top: 2px dashed #eee;
+            padding: 20px 25px;
+            margin-top: 10px;
+            font-weight: 800;
+            font-size: 22px;
+            color: var(--dark);
         }
         
-        .summary-row { display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px; color: var(--text-grey); }
-        .summary-row.total { border-top: 2px dashed #eee; padding-top: 20px; margin-top: 20px; font-weight: 800; font-size: 20px; color: var(--dark); }
+        .tax-note { font-size: 11px; color: #999; text-align: right; padding: 0 25px; margin-top: -8px; margin-bottom: 10px;}
+
+        /* TABS */
+        .instruction-text { padding: 0 25px 10px; font-size: 14px; color: var(--text-grey); margin-top: 20px; }
         
+        .tab-container {
+            display: flex; margin: 0 25px 15px;
+            border: 1px solid #eee; border-radius: 12px; overflow: hidden;
+            background: #f8f9fa;
+        }
+        .tab-btn {
+            flex: 1; padding: 15px; border: none; background: transparent;
+            font-weight: 700; color: var(--text-grey); cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+            transition: var(--transition);
+        }
+        .tab-btn i { font-size: 18px; margin-bottom: 2px; }
+        
+        .tab-btn.active { background: var(--dark); color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .tab-btn:hover:not(.active) { color: var(--primary); background: #fff; }
+
+        /* FORMS */
+        .tab-content { padding: 0 25px 25px; display: none; animation: fadeIn 0.4s cubic-bezier(0.25, 0.8, 0.25, 1); }
+        .tab-content.active { display: block; }
+
+        .input-group { 
+            display: flex; align-items: center; justify-content: space-between;
+            border: 2px solid #f1f2f6; padding: 14px 18px; margin-bottom: 12px;
+            border-radius: 12px; background: #fff; position: relative;
+            transition: var(--transition);
+        }
+        .input-group:hover, .input-group:focus-within { border-color: var(--primary); }
+        
+        .input-group input { 
+            border: none; outline: none; width: 100%; font-size: 14px; 
+            color: var(--dark); cursor: pointer; font-weight: 600;
+        }
+        .input-icon { color: var(--text-grey); font-size: 16px; }
+
+        /* --- CHECKOUT BUTTON (FIXED TRANSITION) --- */
         .btn-checkout { 
             width: 100%; 
             padding: 18px; 
+            background: var(--dark);  /* Default Dark */
+            color: #fff;
             border: none; 
             border-radius: 12px; 
-            background: var(--dark); 
-            color: #fff; 
-            font-weight: 700; 
-            font-size: 16px; 
+            font-weight: 800; 
+            font-size: 16px;
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
             cursor: pointer; 
-            margin-top: 20px; 
-            transition: 0.3s; 
+            
+            /* The Smooth Transition */
+            transition: var(--transition); 
         }
-        .btn-checkout:hover { background: var(--primary); transform: translateY(-2px); }
-        
+
+        .btn-checkout:hover { 
+            background: var(--primary); /* Transitions to RED on hover */
+            transform: translateY(-3px); 
+            box-shadow: 0 10px 25px rgba(255, 71, 87, 0.3); /* Red glow shadow */
+        }
+
         .btn-back {
             display: inline-flex; align-items: center; gap: 8px;
-            text-decoration: none; color: var(--text-grey); font-weight: 600;
-            margin-bottom: 20px; transition: 0.2s;
+            text-decoration: none; color: var(--text-grey); font-weight: 700;
+            margin-bottom: 20px; transition: var(--transition);
         }
-        .btn-back:hover { color: var(--primary); }
+        .btn-back:hover { color: var(--primary); transform: translateX(-3px); }
+        
+        .empty-cart { text-align: center; padding: 60px; color: var(--text-grey); grid-column: 1 / -1; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* EMPTY STATE */
-        .empty-cart { text-align: center; padding: 50px; color: var(--text-grey); grid-column: 1 / -1; }
-        .empty-cart i { font-size: 40px; margin-bottom: 15px; color: #ddd; }
-
-        @media (max-width: 800px) { 
+        @media (max-width: 900px) { 
             .cart-view { grid-template-columns: 1fr; }
-            .cart-summary-box { position: static; }
+            .cart-summary-box { position: static; margin-top: 30px; }
         }
 
-        /* Toast */
         .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
         .toast { background: white; padding: 15px 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); margin-bottom: 10px; border-left: 4px solid var(--accent); display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s ease; }
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -130,32 +205,68 @@
         
         <div class="cart-items-container">
             <a href="index.php" class="btn-back"><i class="fas fa-arrow-left"></i> Back to Menu</a>
-            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 25px;">Your Order</h1>
-            
-            <div id="cartList" class="cart-list">
-                </div>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 25px; color: var(--dark);">Your Cart</h1>
+            <div id="cartList" class="cart-list"></div>
         </div>
 
         <div class="cart-summary-box">
-            <h3 style="margin-bottom: 20px; font-weight: 700;">Payment Summary</h3>
-            
-            <div class="summary-row">
-                <span>Subtotal</span>
-                <span id="summarySubtotal">Rs. 0.00</span>
-            </div>
-            <div class="summary-row">
-                <span>Service Charge (10%)</span>
-                <span id="summaryService">Rs. 0.00</span>
+            <div class="summary-header">
+                <h3>Order Summary</h3>
             </div>
             
-            <div class="summary-row total">
-                <span>Total</span>
-                <span id="summaryTotal" style="color: var(--primary);">Rs. 0.00</span>
+            <div style="padding-top: 15px;">
+                <div class="price-row">
+                    <span>Subtotal</span>
+                    <span id="summarySubtotal">Rs. 0.00</span>
+                </div>
+                <div class="price-row">
+                    <span>Delivery Fee</span>
+                    <span id="summaryDelivery">Rs. 0.00</span>
+                </div>
+                <div class="tax-note">Prices are inclusive of Taxes</div>
+                
+                <div class="price-row total">
+                    <span>Total</span>
+                    <span id="summaryTotal" style="color: var(--primary);">Rs. 0.00</span>
+                </div>
             </div>
 
-            <button class="btn-checkout" onclick="placeOrder()">
-                CONFIRM ORDER
-            </button>
+            <p class="instruction-text">Select Order Method:</p>
+
+            <div class="tab-container">
+                <button class="tab-btn active" onclick="switchTab('delivery')">
+                    <i class="fas fa-globe-americas"></i> Delivery
+                </button>
+                <button class="tab-btn" onclick="switchTab('pickup')">
+                    <i class="fas fa-store"></i> Store Pickup
+                </button>
+            </div>
+
+            <div id="tab-delivery" class="tab-content active">
+                <div class="input-group">
+                    <input type="text" placeholder="Pick a date" onfocus="(this.type='date')" id="delDate">
+                    <i class="far fa-calendar-alt input-icon"></i>
+                </div>
+                <div class="input-group">
+                    <input type="text" placeholder="Select Time" onfocus="(this.type='time')" id="delTime">
+                    <i class="far fa-clock input-icon"></i>
+                </div>
+            </div>
+
+            <div id="tab-pickup" class="tab-content">
+                <div class="input-group">
+                    <input type="text" placeholder="Pick a date" onfocus="(this.type='date')" id="pickDate">
+                    <i class="far fa-calendar-alt input-icon"></i>
+                </div>
+                <div class="input-group">
+                    <input type="text" placeholder="Select Time" onfocus="(this.type='time')" id="pickTime">
+                    <i class="far fa-clock input-icon"></i>
+                </div>
+            </div>
+
+            <div style="padding: 0 25px 25px;">
+                <button class="btn-checkout" onclick="placeOrder()">CONFIRM ORDER</button>
+            </div>
         </div>
     </section>
 
@@ -163,8 +274,9 @@
 
 <script>
     // 1. INIT STATE
-    // We read the 'pos_cart' from LocalStorage which was saved by the main page
     let cart = JSON.parse(localStorage.getItem('pos_cart')) || [];
+    let currentTab = 'delivery'; 
+    const DELIVERY_FEE = 350.00; 
     
     // Helpers
     const formatCurrency = (val) => `Rs. ${Number(val||0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -176,15 +288,14 @@
         if(cart.length === 0) {
             list.innerHTML = `
                 <div class="empty-cart">
-                    <i class="fas fa-shopping-basket"></i>
-                    <p>Your cart is empty.</p>
-                    <a href="index.php" style="color:var(--primary); font-weight:700; margin-top:10px; display:inline-block;">Browse Menu</a>
+                    <i class="fas fa-shopping-basket" style="font-size:48px; color:#ddd; margin-bottom:20px;"></i>
+                    <p style="font-size:16px; font-weight:600;">Your cart is empty.</p>
+                    <a href="index.php" style="color:var(--primary); font-weight:700; margin-top:15px; display:inline-block; text-decoration:none;">Browse Menu</a>
                 </div>`;
             updateTotals();
             return;
         }
 
-        // Group identical items
         const grouped = {};
         cart.forEach(item => {
             const key = `${item.id}-${item.selectedSize}`;
@@ -193,7 +304,6 @@
         });
         const groupedArr = Object.values(grouped);
 
-        // Generate HTML
         list.innerHTML = groupedArr.map(item => `
             <div class="cart-item">
                 <img src="${item.img}" alt="${item.name}">
@@ -216,50 +326,68 @@
     // 3. UPDATE TOTALS
     function updateTotals() {
         const subtotal = cart.reduce((sum, item) => sum + item.finalPrice, 0);
-        const service = subtotal * 0.10;
-        
+        let finalDeliveryFee = 0;
+
+        if (cart.length > 0 && currentTab === 'delivery') {
+            finalDeliveryFee = DELIVERY_FEE;
+        }
+
+        const total = subtotal + finalDeliveryFee;
+
         document.getElementById('summarySubtotal').innerText = formatCurrency(subtotal);
-        document.getElementById('summaryService').innerText = formatCurrency(service);
-        document.getElementById('summaryTotal').innerText = formatCurrency(subtotal + service);
+        document.getElementById('summaryDelivery').innerText = formatCurrency(finalDeliveryFee);
+        document.getElementById('summaryTotal').innerText = formatCurrency(total);
     }
 
     // 4. MODIFY QTY
     window.modifyCartQty = (id, size, change) => {
         if(change === 1) {
-            // Duplicate an item
             const item = cart.find(i => i.id === id && i.selectedSize === size);
             if(item) cart.push({ ...item, uniqueId: Date.now() });
         } else {
-            // Remove an instance
             const idx = cart.findIndex(i => i.id === id && i.selectedSize === size);
             if(idx > -1) cart.splice(idx, 1);
         }
-        
-        // Save back to LocalStorage so changes persist if they go back to menu
         localStorage.setItem('pos_cart', JSON.stringify(cart));
         renderCartPageItems();
     }
 
-    // 5. PLACE ORDER
+    // 5. SWITCH TABS
+    window.switchTab = (tab) => {
+        currentTab = tab;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        if (tab === 'delivery') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('tab-delivery').classList.add('active');
+        } else {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('tab-pickup').classList.add('active');
+        }
+
+        updateTotals();
+    }
+
+    // 6. PLACE ORDER
     window.placeOrder = () => {
         if(cart.length === 0) return;
 
-        // --- BACKEND INTEGRATION NOTE ---
-        // To save to database, use fetch() here to send 'cart' to a PHP endpoint.
-        /*
-        fetch('api/place_order.php', {
-            method: 'POST',
-            body: JSON.stringify({ cart: cart, total: ... })
-        }).then(...)
-        */
+        let date, time;
+        if (currentTab === 'delivery') {
+            date = document.getElementById('delDate').value;
+            time = document.getElementById('delTime').value;
+            if (!date || !time) { showToast("Please select delivery date & time!"); return; }
+        } else {
+            date = document.getElementById('pickDate').value;
+            time = document.getElementById('pickTime').value;
+            if (!date || !time) { showToast("Please select pickup date & time!"); return; }
+        }
 
-        // For now, simulate success:
-        showToast("Order Confirmed! Kitchen notified.");
-        
-        // Clear Cart
+        showToast(`Order Confirmed! Method: ${currentTab === 'delivery' ? 'Delivery' : 'Store Pickup'}`);
         cart = [];
         localStorage.removeItem('pos_cart');
-        renderCartPageItems();
+        setTimeout(() => renderCartPageItems(), 1500);
     }
 
     function showToast(msg) {
@@ -270,10 +398,7 @@
         setTimeout(() => t.remove(), 3000);
     }
 
-    // Load on start
     renderCartPageItems();
-
 </script>
-<script src="/assets/js/profile-icon.js"></script>
 </body>
 </html>
