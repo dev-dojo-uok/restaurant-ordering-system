@@ -7,12 +7,18 @@ require_once '../../app/config/database.php';
 // Check if user is admin
 requireRole('admin', '../index.php');
 
-// Get all menu items with categories
+// Get all menu items with categories and variant price range
 try {
     $stmt = $pdo->query("
-        SELECT mi.*, mc.name as category_name
+        SELECT mi.*, 
+               mc.name as category_name,
+               MIN(miv.price) as min_price,
+               MAX(miv.price) as max_price,
+               COUNT(miv.id) as variant_count
         FROM menu_items mi
         LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+        LEFT JOIN menu_item_variants miv ON mi.id = miv.menu_item_id
+        GROUP BY mi.id, mc.name, mc.display_order
         ORDER BY mc.display_order, mi.name
     ");
     $menuItems = $stmt->fetchAll();
@@ -103,7 +109,19 @@ try {
                                             <?php echo htmlspecialchars($item['category_name'] ?? 'Uncategorized'); ?>
                                         </span>
                                     </td>
-                                    <td><strong>Rs <?php echo number_format($item['price'], 2); ?></strong></td>
+                                    <td>
+                                        <strong>
+                                            <?php if ($item['min_price'] && $item['max_price']): ?>
+                                                <?php if ($item['min_price'] == $item['max_price']): ?>
+                                                    Rs <?php echo number_format($item['min_price'], 2); ?>
+                                                <?php else: ?>
+                                                    Rs <?php echo number_format($item['min_price'], 2); ?> - Rs <?php echo number_format($item['max_price'], 2); ?>
+                                                <?php endif; ?>
+                                            <?php else: ?>
+                                                <span style="color: #999;">No variants</span>
+                                            <?php endif; ?>
+                                        </strong>
+                                    </td>
                                     <td>
                                         <div style="display: flex; flex-direction: column; gap: 5px;">
                                             <?php if ($item['is_featured']): ?>

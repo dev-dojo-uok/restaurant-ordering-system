@@ -202,6 +202,11 @@ try {
             box-shadow: 0 8px 20px rgba(255, 71, 87, 0.3);
         }
 
+        .empty-state a i {
+            font-size: 14px;
+            margin-right: 5px;
+        }
+
         .empty-state a:hover {
             background: var(--primary-dark);
             transform: translateY(-2px);
@@ -257,10 +262,18 @@ try {
             </div>
 
             <div class="order-footer">
-                <span class="order-type">
-                    <i class="fas fa-<?php echo $order['order_type'] === 'delivery' ? 'truck' : 'store'; ?>"></i>
-                    <?php echo ucfirst($order['order_type']); ?>
-                </span>
+                <div>
+                    <span class="order-type">
+                        <i class="fas fa-<?php echo $order['order_type'] === 'delivery' ? 'truck' : 'store'; ?>"></i>
+                        <?php echo ucfirst($order['order_type']); ?>
+                    </span>
+                    <?php if ($order['order_type'] === 'delivery' && !empty($order['delivery_address'])): ?>
+                        <div style="margin-top: 10px; font-size: 13px; color: var(--text-grey);">
+                            <i class="fas fa-map-marker-alt"></i> 
+                            <?php echo htmlspecialchars($order['delivery_address']); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
                 <span class="order-total">Rs. <?php echo number_format($order['total_amount'], 2); ?></span>
             </div>
         </div>

@@ -207,7 +207,7 @@ try {
                     <?php if ($banner['description']): ?>
                         <p><?php echo htmlspecialchars($banner['description']); ?></p>
                     <?php endif; ?>
-                    <?php if ($banner['button_text'] && $banner['button_link']): ?>
+                    <?php if (!empty($banner['button_text']) && !empty($banner['button_link'])): ?>
                         <a href="<?php echo htmlspecialchars($banner['button_link']); ?>" class="carousel-btn">
                             <?php echo htmlspecialchars($banner['button_text']); ?>
                         </a>

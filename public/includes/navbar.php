@@ -454,6 +454,10 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                             <i class="fas fa-receipt"></i>
                             <span>My Orders</span>
                         </a>
+                        <a href="/cart.php" class="profile-dropdown-item">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span>My Cart</span>
+                        </a>
                     <?php endif; ?>
                     
                     <a href="/logout.php" class="profile-dropdown-item">

@@ -7,20 +7,21 @@ class User {
         $this->pdo = $pdo;
     }
 
-    public function create($data) {
+    public function create($username, $email, $password, $full_name, $phone = null, $role = 'customer', $address = null) {
         try {
-            $hashedPassword = password_hash($data['password'], PASSWORD_DEFAULT);
+            $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
             $sql = "INSERT INTO users (username, email, password, full_name, role, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $this->pdo->prepare($sql);
-            return $stmt->execute([
-                $data['username'],
-                $data['email'],
+            $result = $stmt->execute([
+                $username,
+                $email,
                 $hashedPassword,
-                $data['full_name'],
-                $data['role'] ?? 'customer',
-                $data['phone'] ?? null,
-                $data['address'] ?? null
+                $full_name,
+                $role,
+                $phone,
+                $address
             ]);
+            return $result ? $this->pdo->lastInsertId() : false;
         } catch (PDOException $e) {
             error_log("User creation error: " . $e->getMessage());
             return false;

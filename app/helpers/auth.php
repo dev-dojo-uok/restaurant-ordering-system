@@ -87,13 +87,13 @@ function redirectToDashboard() {
             header('Location: /admin/dashboard.php');
             break;
         case 'cashier':
-            header('Location: /cashier/dashboard.php');
+            header('Location: /pos');
             break;
         case 'kitchen':
-            header('Location: /kitchen/dashboard.php');
+            header('Location: /admin/kitchen.php');
             break;
         case 'rider':
-            header('Location: /rider/dashboard.php');
+            header('Location: /rider.php');
             break;
         case 'customer':
             header('Location: /index.php');

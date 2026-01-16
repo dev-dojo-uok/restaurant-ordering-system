@@ -59,7 +59,15 @@ class AuthController {
             'address' => trim($data['address'] ?? '')
         ];
 
-        $result = $this->userModel->create($userData);
+        $result = $this->userModel->create(
+            $userData['username'],
+            $userData['email'],
+            $userData['password'],
+            $userData['full_name'],
+            $userData['phone'],
+            $userData['role'],
+            $userData['address']
+        );
 
         if ($result) {
             return ['success' => true, 'message' => 'Registration successful! Please login.'];
@@ -103,11 +111,11 @@ class AuthController {
             case 'admin':
                 return '/admin/dashboard.php';
             case 'cashier':
-                return '/cashier/dashboard.php';
+                return '/pos';
             case 'kitchen':
-                return '/kitchen/dashboard.php';
+                return '/admin/kitchen.php';
             case 'rider':
-                return '/rider/dashboard.php';
+                return '/rider.php';
             case 'customer':
                 return '/index.php';
             default:

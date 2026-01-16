@@ -44,6 +44,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Order action buttons (using event delegation)
         mainContentArea.addEventListener('click', handleOrderAction);
+        
+        // Populate rider dropdowns
+        populateRiderDropdowns();
+    }
+    
+    /**
+     * Populate rider dropdowns
+     */
+    function populateRiderDropdowns() {
+        if (typeof availableRiders === 'undefined') return;
+        
+        const riderSelects = document.querySelectorAll('.rider-select');
+        riderSelects.forEach(select => {
+            // Clear existing options except first one
+            select.innerHTML = '<option value="">Assign Rider</option>';
+            
+            // Add rider options
+            availableRiders.forEach(rider => {
+                const option = document.createElement('option');
+                option.value = rider.id;
+                option.textContent = rider.full_name || rider.username;
+                select.appendChild(option);
+            });
+        });
     }
 
     /**
@@ -58,6 +82,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!orderId || !action) {
             console.error('Missing order ID or action');
+            return;
+        }
+        
+        // Handle rider assignment
+        if (action === 'assign_rider') {
+            const riderSelect = btn.parentElement.querySelector('.rider-select');
+            const riderId = riderSelect.value;
+            
+            if (!riderId) {
+                showToast('Please select a rider', 'error');
+                return;
+            }
+            
+            // Disable button and show loading state
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = 'Assigning...';
+
+            try {
+                const response = await fetch('../api/kitchen.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        order_id: orderId,
+                        action: 'assign_rider',
+                        rider_id: riderId
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Remove card from ready column
+                    const card = btn.closest('.order-card');
+                    card.remove();
+                    showToast('Rider assigned successfully', 'success');
+                    refreshCounts();
+                    
+                    // Check if list is empty
+                    const readyList = document.getElementById('ready-list');
+                    if (readyList.children.length === 0) {
+                        const emptyDiv = document.createElement('div');
+                        emptyDiv.className = 'empty-state';
+                        emptyDiv.textContent = 'No orders ready';
+                        readyList.appendChild(emptyDiv);
+                    }
+                } else {
+                    showToast(data.message || 'Failed to assign rider', 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } catch (error) {
+                console.error('Error assigning rider:', error);
+                showToast('Network error. Please try again.', 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
             return;
         }
 

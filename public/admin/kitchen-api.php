@@ -54,11 +54,51 @@ if (!$orderId) {
 }
 
 // Validate action
-$validActions = ['start', 'finish', 'served'];
+$validActions = ['start', 'finish', 'served', 'assign_rider'];
 if (!in_array($action, $validActions)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'message' => 'Invalid action']);
     exit;
+}
+
+// Handle rider assignment separately
+if ($action === 'assign_rider') {
+    if (!isset($input['rider_id'])) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Rider ID required']);
+        exit;
+    }
+    
+    $riderId = filter_var($input['rider_id'], FILTER_VALIDATE_INT);
+    if (!$riderId) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Invalid rider ID']);
+        exit;
+    }
+    
+    try {
+        // Assign rider to order
+        $stmt = $pdo->prepare("
+            UPDATE orders 
+            SET rider_id = ?, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ? AND order_type = 'delivery' AND status = 'ready_to_collect'
+        ");
+        $stmt->execute([$riderId, $orderId]);
+        
+        if ($stmt->rowCount() > 0) {
+            http_response_code(200);
+            echo json_encode(['success' => true, 'message' => 'Rider assigned successfully']);
+        } else {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Order not found or invalid status']);
+        }
+        exit;
+    } catch (PDOException $e) {
+        error_log("Rider Assignment Error: " . $e->getMessage());
+        http_response_code(500);
+        echo json_encode(['success' => false, 'message' => 'Database error']);
+        exit;
+    }
 }
 
 try {

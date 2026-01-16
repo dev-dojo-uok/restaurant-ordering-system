@@ -113,7 +113,7 @@ try {
     $staff = $stmt->fetchAll();
     
     // Get counts by role
-    $stmt = $pdo->query("SELECT role, COUNT(*) as count FROM users WHERE role != 'customer' AND is_active = 1 GROUP BY role");
+    $stmt = $pdo->query("SELECT role, COUNT(*) as count FROM users WHERE role != 'customer' AND is_active = TRUE GROUP BY role");
     $roleCounts = [];
     while ($row = $stmt->fetch()) {
         $roleCounts[$row['role']] = $row['count'];

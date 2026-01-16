@@ -165,11 +165,11 @@ try {
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if ($banner['button_text']): ?>
+                                    <?php if (isset($banner['button_text']) && !empty($banner['button_text'])): ?>
                                         <span class="badge badge-info">
                                             <?php echo htmlspecialchars($banner['button_text']); ?>
                                         </span>
-                                        <?php if ($banner['button_link']): ?>
+                                        <?php if (isset($banner['button_link']) && !empty($banner['button_link'])): ?>
                                             <br><small style="color: var(--text-muted); font-size: 0.75rem;">
                                                 → <?php echo htmlspecialchars($banner['button_link']); ?>
                                             </small>

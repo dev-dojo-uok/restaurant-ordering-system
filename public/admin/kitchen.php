@@ -11,6 +11,11 @@ requireRole(['admin', 'kitchen'], '../index.php');
 $kitchenController = new KitchenController($pdo);
 $orders = $kitchenController->getKitchenOrders();
 $counts = $kitchenController->getOrderCounts();
+
+// Get available riders
+$stmt = $pdo->prepare("SELECT id, full_name, username FROM users WHERE role = 'rider' AND is_active = TRUE");
+$stmt->execute();
+$riders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -163,7 +168,16 @@ $counts = $kitchenController->getOrderCounts();
                             </ul>
                         </div>
                         <div class="card-footer">
-                            <button class="action-btn" data-action="served" data-order-id="<?= $order['id'] ?>">Served</button>
+                            <?php if ($order['order_type'] === 'delivery'): ?>
+                                <div class="rider-assignment">
+                                    <select class="rider-select" data-order-id="<?= $order['id'] ?>">
+                                        <option value="">Assign Rider</option>
+                                    </select>
+                                    <button class="action-btn assign-btn" data-action="assign_rider" data-order-id="<?= $order['id'] ?>">Assign</button>
+                                </div>
+                            <?php else: ?>
+                                <button class="action-btn" data-action="served" data-order-id="<?= $order['id'] ?>">Served</button>
+                            <?php endif; ?>
                         </div>
                     </article>
                     <?php endforeach; ?>
@@ -209,7 +223,11 @@ $counts = $kitchenController->getOrderCounts();
                 
                 <?php if (empty($orders['served'])): ?>
                     <div class="empty-state">No served orders today</div>
-                <?php endif; ?>
+           >
+        // Pass riders data to JavaScript
+        const availableRiders = <?php echo json_encode($riders); ?>;
+    </script>
+        <?php endif; ?>
             </div>
         </div>
     </div>

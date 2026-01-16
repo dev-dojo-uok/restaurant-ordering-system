@@ -1,9 +1,28 @@
 <?php
 // Start session before any output to avoid header warnings
 require_once __DIR__ . '/../app/helpers/auth.php';
+require_once __DIR__ . '/../app/config/database.php';
 startSession();
 $currentUserId = getCurrentUserId();
 $currentUserName = getCurrentUserName();
+
+// Get user's address if logged in
+$userAddress = '';
+if ($currentUserId) {
+    try {
+        $stmt = $pdo->prepare("SELECT address FROM users WHERE id = :id");
+        $stmt->execute(['id' => $currentUserId]);
+        $user = $stmt->fetch();
+        if ($user && isset($user['address'])) {
+            $userAddress = trim($user['address']);
+        }
+    } catch (Exception $e) {
+        // Log error for debugging
+        error_log("Cart.php - Error fetching user address: " . $e->getMessage());
+    }
+}
+// Debug: You can temporarily uncomment this to see what's being fetched
+// echo "<!-- Debug: User ID: $currentUserId, Address: '$userAddress' -->";
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -258,6 +277,11 @@ $currentUserName = getCurrentUserName();
             </div>
 
             <div id="tab-delivery" class="tab-content active">
+                <div class="input-group" style="margin-bottom: 15px;">
+                    <input type="text" placeholder="Enter delivery address" id="deliveryAddress" required>
+                    <i class="fas fa-map-marker-alt input-icon"></i>
+                </div>
+                
                 <div class="time-option-container">
                     <button class="time-option-btn active" id="btnASAP" onclick="selectDeliveryTime('asap')">
                         <i class="fas fa-bolt"></i> ASAP
@@ -299,6 +323,7 @@ $currentUserName = getCurrentUserName();
     const DELIVERY_FEE = 350.00; 
     const currentUserId = <?php echo json_encode($currentUserId); ?>;
     const currentUserName = <?php echo json_encode($currentUserName); ?>;
+    const userAddress = <?php echo json_encode($userAddress); ?>;
     
     // Helpers
     const formatCurrency = (val) => `Rs. ${Number(val||0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
@@ -308,6 +333,152 @@ $currentUserName = getCurrentUserName();
         const deliveryFee = cart.length > 0 && currentTab === 'delivery' ? DELIVERY_FEE : 0;
         const total = subtotal + deliveryFee;
         return { subtotal, deliveryFee, total };
+    };
+
+    // DEFINE FUNCTIONS EARLY FOR ONCLICK HANDLERS
+    
+    // Switch between delivery and pickup tabs
+    window.switchTab = function(tab) {
+        currentTab = tab;
+        
+        // Remove active class from all tab buttons
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        
+        // Remove active class from all tab contents
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        // Add active class to selected tab and content
+        if (tab === 'delivery') {
+            tabButtons[0].classList.add('active');
+            document.getElementById('tab-delivery').classList.add('active');
+        } else if (tab === 'pickup') {
+            tabButtons[1].classList.add('active');
+            document.getElementById('tab-pickup').classList.add('active');
+        }
+
+        updateTotals();
+    };
+    
+    // Select delivery time option (ASAP or Later)
+    window.selectDeliveryTime = function(option) {
+        deliveryTimeOption = option;
+        
+        const btnASAP = document.getElementById('btnASAP');
+        const btnLater = document.getElementById('btnLater');
+        const dateTimeDiv = document.getElementById('delivery-datetime');
+        
+        if (!btnASAP || !btnLater || !dateTimeDiv) return;
+        
+        if (option === 'asap') {
+            btnASAP.classList.add('active');
+            btnLater.classList.remove('active');
+            dateTimeDiv.style.display = 'none';
+        } else {
+            btnASAP.classList.remove('active');
+            btnLater.classList.add('active');
+            dateTimeDiv.style.display = 'block';
+        }
+    };
+    
+    // Modify cart quantity
+    window.modifyCartQty = function(id, size, change) {
+        if(change === 1) {
+            const item = cart.find(i => i.id === id && i.selectedSize === size);
+            if(item) cart.push({ ...item, uniqueId: Date.now() });
+        } else {
+            const idx = cart.findIndex(i => i.id === id && i.selectedSize === size);
+            if(idx > -1) cart.splice(idx, 1);
+        }
+        localStorage.setItem('pos_cart', JSON.stringify(cart));
+        renderCartPageItems();
+    };
+    
+    // Place order
+    window.placeOrder = async function() {
+        if(cart.length === 0) return;
+
+        let orderInfo = '';
+        let deliveryAddress = '';
+        
+        if (currentTab === 'delivery') {
+            deliveryAddress = document.getElementById('deliveryAddress').value.trim();
+            if (!deliveryAddress) {
+                showToast("Please enter delivery address!");
+                return;
+            }
+            
+            if (deliveryTimeOption === 'later') {
+                const date = document.getElementById('delDate').value;
+                const time = document.getElementById('delTime').value;
+                if (!date || !time) { 
+                    showToast("Please select delivery date & time!"); 
+                    return; 
+                }
+                orderInfo = `Delivery scheduled for ${date} at ${time}`;
+            } else {
+                orderInfo = 'Delivery ASAP';
+            }
+        } else {
+            orderInfo = 'Store Pickup';
+        }
+
+        // Group items for API
+        const grouped = {};
+        cart.forEach(item => {
+            const key = `${item.id}-${item.selectedSize}`;
+            if (!grouped[key]) grouped[key] = { ...item, quantity: 0 };
+            grouped[key].quantity += 1;
+        });
+        const itemsPayload = Object.values(grouped).map(it => ({
+            menu_item_id: it.id,
+            variant_id: it.variantId !== 'def' ? it.variantId : null,
+            quantity: it.quantity,
+            price: it.finalPrice,
+            item_name: it.name,
+            variant_name: it.selectedSize
+        }));
+
+        const { total } = getTotals();
+        const payload = {
+            order_type: currentTab === 'delivery' ? 'delivery' : 'takeaway',
+            total_amount: total,
+            payment_method: 'cash',
+            payments: [{ method: 'cash', amount: total }],
+            notes: orderInfo,
+            delivery_address: deliveryAddress || null,
+            user_id: currentUserId || null,
+            customer_name: currentUserName || 'Guest',
+            items: itemsPayload
+        };
+
+        const btn = document.querySelector('.btn-checkout');
+        const prevText = btn ? btn.innerText : '';
+        if (btn) { btn.innerText = 'Placing...'; btn.disabled = true; }
+
+        try {
+            const res = await fetch('/api/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || 'Failed to place order');
+            }
+
+            showToast(`Order Confirmed! ${orderInfo}`);
+            cart = [];
+            localStorage.removeItem('pos_cart');
+            setTimeout(() => window.location.href = '/orders.php', 800);
+        } catch (err) {
+            console.error('Order error', err);
+            showToast(err.message || 'Could not place order');
+        } finally {
+            if (btn) { btn.innerText = prevText || 'CONFIRM ORDER'; btn.disabled = false; }
+            renderCartPageItems();
+        }
     };
 
     // 2. RENDER CART
@@ -360,133 +531,6 @@ $currentUserName = getCurrentUserName();
         document.getElementById('summaryTotal').innerText = formatCurrency(total);
     }
 
-    // 4. MODIFY QTY
-    window.modifyCartQty = (id, size, change) => {
-        if(change === 1) {
-            const item = cart.find(i => i.id === id && i.selectedSize === size);
-            if(item) cart.push({ ...item, uniqueId: Date.now() });
-        } else {
-            const idx = cart.findIndex(i => i.id === id && i.selectedSize === size);
-            if(idx > -1) cart.splice(idx, 1);
-        }
-        localStorage.setItem('pos_cart', JSON.stringify(cart));
-        renderCartPageItems();
-    }
-
-    // 5. SWITCH TABS
-    window.switchTab = (tab) => {
-        currentTab = tab;
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        if (tab === 'delivery') {
-            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
-            document.getElementById('tab-delivery').classList.add('active');
-        } else {
-            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
-            document.getElementById('tab-pickup').classList.add('active');
-        }
-
-        updateTotals();
-    }
-    
-    // 5b. SELECT DELIVERY TIME OPTION
-    window.selectDeliveryTime = (option) => {
-        deliveryTimeOption = option;
-        
-        const btnASAP = document.getElementById('btnASAP');
-        const btnLater = document.getElementById('btnLater');
-        const dateTimeDiv = document.getElementById('delivery-datetime');
-        
-        if (option === 'asap') {
-            btnASAP.classList.add('active');
-            btnLater.classList.remove('active');
-            dateTimeDiv.style.display = 'none';
-        } else {
-            btnASAP.classList.remove('active');
-            btnLater.classList.add('active');
-            dateTimeDiv.style.display = 'block';
-        }
-    }
-
-    // 6. PLACE ORDER
-    window.placeOrder = async () => {
-        if(cart.length === 0) return;
-
-        let orderInfo = '';
-        
-        if (currentTab === 'delivery') {
-            if (deliveryTimeOption === 'later') {
-                const date = document.getElementById('delDate').value;
-                const time = document.getElementById('delTime').value;
-                if (!date || !time) { 
-                    showToast("Please select delivery date & time!"); 
-                    return; 
-                }
-                orderInfo = `Delivery scheduled for ${date} at ${time}`;
-            } else {
-                orderInfo = 'Delivery ASAP';
-            }
-        } else {
-            orderInfo = 'Store Pickup';
-        }
-
-        // Group items for API
-        const grouped = {};
-        cart.forEach(item => {
-            const key = `${item.id}-${item.selectedSize}`;
-            if (!grouped[key]) grouped[key] = { ...item, quantity: 0 };
-            grouped[key].quantity += 1;
-        });
-        const itemsPayload = Object.values(grouped).map(it => ({
-            menu_item_id: it.id,
-            variant_id: it.variantId !== 'def' ? it.variantId : null,
-            quantity: it.quantity,
-            price: it.finalPrice,
-            item_name: it.name,
-            variant_name: it.selectedSize
-        }));
-
-        const { total } = getTotals();
-        const payload = {
-            order_type: currentTab === 'delivery' ? 'delivery' : 'takeaway',
-            total_amount: total,
-            payment_method: 'cash',
-            payments: [{ method: 'cash', amount: total }],
-            notes: orderInfo,
-            user_id: currentUserId || null,
-            customer_name: currentUserName || 'Guest',
-            items: itemsPayload
-        };
-
-        const btn = document.querySelector('.btn-checkout');
-        const prevText = btn ? btn.innerText : '';
-        if (btn) { btn.innerText = 'Placing...'; btn.disabled = true; }
-
-        try {
-            const res = await fetch('/api/orders', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.error || 'Failed to place order');
-            }
-
-            showToast(`Order Confirmed! ${orderInfo}`);
-            cart = [];
-            localStorage.removeItem('pos_cart');
-            setTimeout(() => window.location.href = '/orders.php', 800);
-        } catch (err) {
-            console.error('Order error', err);
-            showToast(err.message || 'Could not place order');
-        } finally {
-            if (btn) { btn.innerText = prevText || 'CONFIRM ORDER'; btn.disabled = false; }
-            renderCartPageItems();
-        }
-    }
-
     function showToast(msg) {
         const t = document.createElement('div');
         t.className = 'toast';
@@ -495,7 +539,34 @@ $currentUserName = getCurrentUserName();
         setTimeout(() => t.remove(), 3000);
     }
 
-    renderCartPageItems();
+    // Initialize page
+    window.addEventListener('DOMContentLoaded', () => {
+        console.log('=== Cart Page Debug ===');
+        console.log('Current User ID:', currentUserId);
+        console.log('User Address from PHP:', userAddress);
+        console.log('User Address type:', typeof userAddress);
+        console.log('User Address length:', userAddress ? userAddress.length : 0);
+        
+        renderCartPageItems();
+        
+        // Pre-fill user address if available
+        const addressField = document.getElementById('deliveryAddress');
+        console.log('Address field element:', addressField);
+        
+        if (addressField) {
+            if (userAddress && userAddress.trim() !== '') {
+                addressField.value = userAddress;
+                console.log('✓ Address filled successfully:', userAddress);
+            } else {
+                console.log('✗ No address to fill (userAddress is empty)');
+            }
+        } else {
+            console.log('✗ Address field not found!');
+        }
+        
+        // Ensure initial tab state is correct
+        switchTab('delivery');
+    });
 </script>
 </body>
 </html>

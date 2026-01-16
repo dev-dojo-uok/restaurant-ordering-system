@@ -21,14 +21,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'update_status') {
             $status = $_POST['status'];
-            $stmt = $pdo->prepare("UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$status, $orderId]);
             $_SESSION['success'] = "Order status updated successfully!";
         }
         
+        elseif ($action === 'assign_rider') {
+            $riderId = $_POST['rider_id'];
+            $stmt = $pdo->prepare("UPDATE orders SET rider_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+            $stmt->execute([$riderId, $orderId]);
+            $_SESSION['success'] = "Rider assigned successfully!";
+        }
+        
         elseif ($action === 'update_payment') {
             $paymentStatus = $_POST['payment_status'];
-            $stmt = $pdo->prepare("UPDATE orders SET payment_status = ?, updated_at = NOW() WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$paymentStatus, $orderId]);
             $_SESSION['success'] = "Payment status updated successfully!";
         }
@@ -80,14 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         elseif ($action === 'update_notes') {
             $notes = $_POST['notes'];
-            $stmt = $pdo->prepare("UPDATE orders SET notes = ?, updated_at = NOW() WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE orders SET notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$notes, $orderId]);
             $_SESSION['success'] = "Notes updated successfully!";
         }
         
         elseif ($action === 'update_delivery_address') {
             $address = $_POST['delivery_address'];
-            $stmt = $pdo->prepare("UPDATE orders SET delivery_address = ?, updated_at = NOW() WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE orders SET delivery_address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
             $stmt->execute([$address, $orderId]);
             $_SESSION['success'] = "Delivery address updated!";
         }
@@ -144,6 +151,11 @@ try {
     ");
     $stmt->execute([$orderId]);
     $paymentTransactions = $stmt->fetchAll();
+    
+    // Fetch available riders
+    $stmt = $pdo->prepare("SELECT id, full_name, username FROM users WHERE role = 'rider' AND is_active = TRUE");
+    $stmt->execute();
+    $riders = $stmt->fetchAll();
     
 } catch (PDOException $e) {
     die("Error loading order: " . $e->getMessage());
@@ -460,11 +472,15 @@ $pageTitle = "Order #" . $orderId;
                         <input type="hidden" name="action" value="update_status">
                         <label class="info-label">Order Status</label>
                         <select name="status" class="form-select">
-                            <option value="pending" <?= $order['status'] === 'pending' ? 'selected' : '' ?>>Pending</option>
-                            <option value="confirmed" <?= $order['status'] === 'confirmed' ? 'selected' : '' ?>>Confirmed</option>
-                            <option value="preparing" <?= $order['status'] === 'preparing' ? 'selected' : '' ?>>Preparing</option>
-                            <option value="ready" <?= $order['status'] === 'ready' ? 'selected' : '' ?>>Ready</option>
+                            <option value="ordered" <?= $order['status'] === 'ordered' ? 'selected' : '' ?>>Ordered</option>
+                            <option value="under_preparation" <?= $order['status'] === 'under_preparation' ? 'selected' : '' ?>>Under Preparation</option>
+                            <option value="ready_to_collect" <?= $order['status'] === 'ready_to_collect' ? 'selected' : '' ?>>Ready to Collect</option>
+                            <option value="ready_to_serve" <?= $order['status'] === 'ready_to_serve' ? 'selected' : '' ?>>Ready to Serve</option>
+                            <option value="ready_for_pickup" <?= $order['status'] === 'ready_for_pickup' ? 'selected' : '' ?>>Ready for Pickup</option>
+                            <option value="on_the_way" <?= $order['status'] === 'on_the_way' ? 'selected' : '' ?>>On the Way</option>
                             <option value="delivered" <?= $order['status'] === 'delivered' ? 'selected' : '' ?>>Delivered</option>
+                            <option value="completed" <?= $order['status'] === 'completed' ? 'selected' : '' ?>>Completed</option>
+                            <option value="collected" <?= $order['status'] === 'collected' ? 'selected' : '' ?>>Collected</option>
                             <option value="cancelled" <?= $order['status'] === 'cancelled' ? 'selected' : '' ?>>Cancelled</option>
                         </select>
                         <div class="action-buttons">
@@ -540,6 +556,38 @@ $pageTitle = "Order #" . $orderId;
                         </form>
                     <?php endif; ?>
                 </div>
+                
+                <!-- Rider Assignment Card (for delivery orders only) -->
+                <?php if ($order['order_type'] === 'delivery'): ?>
+                    <div class="details-card" style="margin-bottom: 20px;">
+                        <h3><i class="fas fa-motorcycle"></i> Delivery Rider</h3>
+                        
+                        <?php if ($order['rider_name']): ?>
+                            <div class="info-row">
+                                <span class="info-label">Current Rider:</span>
+                                <span class="info-value"><?= htmlspecialchars($order['rider_name']) ?></span>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <form method="POST" style="margin-top: 15px;">
+                            <input type="hidden" name="action" value="assign_rider">
+                            <label class="info-label">Assign/Change Rider</label>
+                            <select name="rider_id" class="form-select">
+                                <option value="">-- Select Rider --</option>
+                                <?php foreach ($riders as $rider): ?>
+                                    <option value="<?= $rider['id'] ?>" <?= $order['rider_id'] == $rider['id'] ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($rider['full_name'] ?? $rider['username']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <div class="action-buttons">
+                                <button type="submit" class="btn-update">
+                                    <i class="fas fa-user-check"></i> Assign Rider
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                <?php endif; ?>
                 
                 <!-- Order Notes Card -->
                 <div class="details-card">

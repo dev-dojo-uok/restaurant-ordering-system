@@ -630,4 +630,130 @@ if ($resource === 'kitchen.php' || $resource === 'kitchen') {
     }
 }
 
+// Rider API Endpoints
+if ($resource === 'rider' || $resource === 'rider.php') {
+    session_start();
+    
+    // Require login
+    if (!isset($_SESSION['user_id'])) {
+        respond(401, ['success' => false, 'message' => 'Unauthorized']);
+    }
+    
+    $riderId = $_SESSION['user_id'];
+    $action = $_GET['action'] ?? '';
+    
+    // Mark order as picked up
+    if ($action === 'mark_picked_up' && $method === 'POST') {
+        $data = getJsonBody();
+        $orderId = $data['order_id'] ?? null;
+        
+        if (!$orderId) {
+            respond(400, ['success' => false, 'message' => 'Order ID required']);
+        }
+        
+        // Verify order belongs to this rider and is in correct status
+        $stmt = $pdo->prepare("
+            SELECT id FROM orders 
+            WHERE id = ? AND rider_id = ? AND status = 'ready_to_collect'
+        ");
+        $stmt->execute([$orderId, $riderId]);
+        
+        if (!$stmt->fetch()) {
+            respond(404, ['success' => false, 'message' => 'Order not found or invalid status']);
+        }
+        
+        // Update order status
+        $stmt = $pdo->prepare("
+            UPDATE orders 
+            SET status = 'on_the_way', updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ?
+        ");
+        
+        if ($stmt->execute([$orderId])) {
+            respond(200, ['success' => true, 'message' => 'Order marked as picked up']);
+        } else {
+            respond(500, ['success' => false, 'message' => 'Failed to update order']);
+        }
+    }
+    
+    // Mark order as delivered
+    if ($action === 'mark_delivered' && $method === 'POST') {
+        $data = getJsonBody();
+        $orderId = $data['order_id'] ?? null;
+        
+        if (!$orderId) {
+            respond(400, ['success' => false, 'message' => 'Order ID required']);
+        }
+        
+        // Verify order belongs to this rider and is in correct status
+        $stmt = $pdo->prepare("
+            SELECT id FROM orders 
+            WHERE id = ? AND rider_id = ? AND status = 'on_the_way'
+        ");
+        $stmt->execute([$orderId, $riderId]);
+        
+        if (!$stmt->fetch()) {
+            respond(404, ['success' => false, 'message' => 'Order not found or invalid status']);
+        }
+        
+        // Update order status
+        $stmt = $pdo->prepare("
+            UPDATE orders 
+            SET status = 'delivered', 
+                completed_at = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP,
+                payment_status = 'completed'
+            WHERE id = ?
+        ");
+        
+        if ($stmt->execute([$orderId])) {
+            respond(200, ['success' => true, 'message' => 'Order marked as delivered']);
+        } else {
+            respond(500, ['success' => false, 'message' => 'Failed to update order']);
+        }
+    }
+    
+    // Get completed orders
+    if ($action === 'get_completed' && $method === 'GET') {
+        $stmt = $pdo->prepare("
+            SELECT 
+                o.id,
+                o.customer_name,
+                o.customer_phone,
+                o.delivery_address,
+                o.total_amount,
+                o.completed_at,
+                o.notes
+            FROM orders o
+            WHERE o.rider_id = ? 
+            AND o.status = 'delivered'
+            AND DATE(o.completed_at) = CURRENT_DATE
+            ORDER BY o.completed_at DESC
+        ");
+        $stmt->execute([$riderId]);
+        $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get order items for each order
+        foreach ($orders as &$order) {
+            $stmt = $pdo->prepare("
+                SELECT 
+                    oi.quantity,
+                    mi.name as item_name,
+                    miv.variant_name
+                FROM order_items oi
+                JOIN menu_item_variants miv ON oi.variant_id = miv.id
+                JOIN menu_items mi ON miv.menu_item_id = mi.id
+                WHERE oi.order_id = ?
+            ");
+            $stmt->execute([$order['id']]);
+            $order['items'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        unset($order);
+        
+        respond(200, ['success' => true, 'orders' => $orders]);
+    }
+    
+    respond(400, ['success' => false, 'message' => 'Invalid rider action']);
+}
+
 respond(404, ['error' => 'Endpoint not found']);
