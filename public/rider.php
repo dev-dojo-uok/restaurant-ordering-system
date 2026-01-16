@@ -16,14 +16,15 @@ $rider = $stmt->fetch(PDO::FETCH_ASSOC);
 $stmt = $pdo->prepare("
     SELECT 
         o.id,
-        o.customer_name,
-        o.customer_phone,
+        COALESCE(o.customer_name, u.full_name) AS customer_name,
+        COALESCE(o.customer_phone, u.phone) AS customer_phone,
         o.delivery_address,
         o.total_amount,
         o.status,
         o.created_at,
         o.notes
     FROM orders o
+    LEFT JOIN users u ON o.user_id = u.id
     WHERE o.rider_id = ? 
     AND o.order_type = 'delivery'
     AND o.status IN ('ready_to_collect', 'on_the_way')
@@ -97,10 +98,10 @@ unset($order);
                         </div>
                         <div class="order-body">
                             <div class="order-details">
-                                <p><strong>Name:</strong> <?php echo htmlspecialchars($order['customer_name']); ?></p>
-                                <p><strong>Address:</strong> <?php echo htmlspecialchars($order['delivery_address']); ?></p>
-                                <p><strong>Contact:</strong> <?php echo htmlspecialchars($order['customer_phone']); ?></p>
-                                <p><strong>Amount:</strong> Rs. <?php echo number_format($order['total_amount'], 2); ?></p>
+                                <p><strong>Name:</strong> <?php echo htmlspecialchars($order['customer_name'] ?? ''); ?></p>
+                                <p><strong>Address:</strong> <?php echo htmlspecialchars($order['delivery_address'] ?? ''); ?></p>
+                                <p><strong>Contact:</strong> <?php echo htmlspecialchars($order['customer_phone'] ?? ''); ?></p>
+                                <p><strong>Amount:</strong> Rs. <?php echo number_format($order['total_amount'] ?? 0, 2); ?></p>
                                 <?php if (!empty($order['notes'])): ?>
                                     <p><strong>Notes:</strong> <?php echo htmlspecialchars($order['notes']); ?></p>
                                 <?php endif; ?>
