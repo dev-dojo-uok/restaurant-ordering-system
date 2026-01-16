@@ -110,7 +110,12 @@ if ($resource === 'users') {
                 respond(400, ['errors' => $errors]);
             }
 
-            $ok = $userModel->create($data);
+            $ok = $userModel->create(
+                trim($data['username']),
+                trim($data['email']),
+                $data['password'],
+                $data['full_name']
+            );
             if (!$ok) respond(500, ['error' => 'Failed to create user']);
             respond(201, ['message' => 'User created']);
         case 'PUT':

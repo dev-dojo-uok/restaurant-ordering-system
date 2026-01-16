@@ -223,15 +223,15 @@ $riders = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 
                 <?php if (empty($orders['served'])): ?>
                     <div class="empty-state">No served orders today</div>
-           >
-        // Pass riders data to JavaScript
-        const availableRiders = <?php echo json_encode($riders); ?>;
-    </script>
-        <?php endif; ?>
+                <?php endif; ?>
             </div>
         </div>
     </div>
 
+    <script>
+        // Pass riders data to JavaScript
+        const availableRiders = <?php echo json_encode($riders); ?>;
+    </script>
     <script src="../assets/js/kitchen.js"></script>
 </body>
 </html>
